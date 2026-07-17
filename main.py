@@ -1,9 +1,31 @@
 import telebot
 from telebot import types
+import threading
+from http.server import BaseHTTPRequestHandler, HTTPServer
+import os
 
 # Botingiz tokensini shu yerga qo'ying
 TOKEN = "8851034305:AAFEJS-F8FZBkjYFW3KTAPNPy1Remd5boOo"
 bot = telebot.TeleBot(TOKEN)
+
+# 1. RENDER PORT XATOLIGINI TUZATISH UCHUN SEXTA WEB-SERVER
+class DummyServer(BaseHTTPRequestHandler):
+    def do_GET(self):
+        self.send_response(200)
+        self.send_header("Content-type", "text/html")
+        self.end_headers()
+        self.wfile.write(b"Bot is running...")
+
+def run_web_server():
+    # Render o'zi avtomatik taqdim etadigan portni olamiz, topilmasa 10000 ni ishlatamiz
+    port = int(os.environ.get("PORT", 10000))
+    server = HTTPServer(("0.0.0.0", port), DummyServer)
+    print(f"Web server started on port {port}")
+    server.serve_forever()
+
+# Web-serverni alohida oqimda (thread) ishga tushiramiz, u botning ishlashiga xalaqit bermaydi
+threading.Thread(target=run_web_server, daemon=True).start()
+
 
 # 45 talik Milliy sertifikat darajasidagi Tarix testi bazasi
 SAVOLLAR = {
@@ -53,7 +75,7 @@ SAVOLLAR = {
     37: {"tur": "variant", "savol": "37-savol: XIX asr o'rtalarida Qo'qon xonligida ichki nizolar va qipchoqlar ta'siri kuchaygan davrda, taxtga uch marta o'tirgan va Rossiya imperiyasi qo'shinlarining hujumlariga qarshi kurashgan hukmdorni ko'rsating.", "variantlar": ["Xudoyorxon", "Sheralixon", "Po'latxon", "Nasriddinxon"], "javob": "Xudoyorxon"},
     38: {"tur": "variant", "savol": "38-savol: 1939-yil 23-avgustda SSSR va Germaniya o'rtasida imzolangan, o'zaro hujum qilmaslik va Sharqiy Yevropani ta'sir doiralariga bo'lib olishni ko'zda tutgan maxfiy bitim tarixda qanday nom bilan ataladi?", "variantlar": ["Molotov-Ribbentrop pakti", "Myunxen kelishuvi", "Anti-Komintern pakti", "Lokarno shartnomasi"], "javob": "Molotov-Ribbentrop pakti"},
     39: {"tur": "variant", "savol": "39-savol: O'zbekiston SSR hududida 1980-yillarning ikkinchi yarmida Moskva markaziy hukumati tomonidan uyushtirilgan, respublikaning ko'plab rahbarlari va mutaxassislarini asossiz qatag'on qilishga qaratilgan siyosiy kompaniya nima deb atalgan?", "variantlar": ["Paxta ishi", "Katta qatag'on", "Kosmopolitizmga qarshi kurash", "Xalq dushmanlarini tugatish"], "javob": "Paxta ishi"},
-    40: {"tur": "variant", "savol": "40-savol: O'zbekiston Respublikasi jahon hamjamiyati bilan iqtisodiy va logistik aloqalarni mustahkamlash maqsadida qaysi yilda qadimiy 'Buyuk Ipak yo'li'ni qayta tiklash ramzi bo'lgan transmilliy 'Asr loyihasi' — Qamchiq dovoni orqali o'tgan Angren-Pop elektrlashtirilgan temir yo'lini rasman ishga tushirdi?", "variantlar": ["2012-yil", "2016-yil", "2018-yil", "2020-yil"]
+    40: {"tur": "variant", "savol": "40-savol: O'zbekiston Respublikasi jahon hamjamiyati bilan iqtisodiy va logistik aloqalarni mustahkamlash maqsadida qaysi yilda qadimiy 'Buyuk Ipak yo'li'ni qayta tiklash ramzi bo'lgan transmilliy 'Asr loyihasi' — Qamchiq dovoni orqali o'tgan Angren-Pop elektrlashtirilgan temir yo'lini rasman ishga tushirdi?", "variantlar": ["2012-yil", "2016-yil", "2018-yil", "2020-yil"], "javob": "2016-yil"},
 
     # 5-BLOK: YOZMA SAVOLLAR (41-45)
     41: {"tur": "yozma", "savol": "41-savol (Yozma): Qadimgi Bobil davlatining eng mashhur hukmdori, miloddan avvalgi XVIII asrda dunyoda birinchi bo'lib qat'iy va mukammal yozma qonunlar to'plamini tuzdirgan shaxsning ismini yozing.", "javob": "Xammurapi"},
@@ -100,7 +122,6 @@ def handle_text(message):
         if q_num <= 45 and SAVOLLAR[q_num]["tur"] == "yozma":
             togri_javob = SAVOLLAR[q_num]["javob"].lower()
             
-            # Kiritilgan javobni kichik harflarda solishtirish (Dukchi Eshon variantlari uchun qulaylik)
             if text.lower() in togri_javob or togri_javob in text.lower():
                 status["score"] += 1
                 status["answers"][q_num] = f"✅ Savol {q_num}: To'g'ri (Siz: {text})"
@@ -124,16 +145,4 @@ def yuborish_savol(chat_id):
 
     # Har 10 ta savoldan keyin to'xtash va tugma chiqarish
     if q_num > status["paket_limit"]:
-        status["paket_limit"] += 10
-        markup = types.InlineKeyboardMarkup()
-        markup.add(types.InlineKeyboardButton(text="➡️ Keyingi 10 ta savolni yuklash", callback_data="next_packet"))
-        bot.send_message(chat_id, f"⏸ Dastlabki blok tugadi. Keyingi blok savollariga tayyor bo'lsangiz, quyidagi tugmani bosing:", reply_markup=markup)
-        return
-
-    savol_data = SAVOLLAR[q_num]
-
-    if savol_data["tur"] == "variant":
-        markup = types.InlineKeyboardMarkup(row_width=2)
-        buttons = [types.InlineKeyboardButton(text=v, callback_data=f"ans_{q_num}_{v}") for v in savol_data["variantlar"]]
-        markup.add(*buttons)
-        bot.send_message(chat_id, savol_data["savol"], reply_markup=markup)
+        st
