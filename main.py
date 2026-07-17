@@ -1,212 +1,171 @@
+import os
+import threading
+from datetime import datetime
+from flask import Flask
 import telebot
 from telebot import types
-from flask import Flask
-import threading
-import os
+from reportlab.lib.pagesizes import letter
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
+from reportlab.lib import colors
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 
-# Botingiz tokensini shu yerga qo'ying
-TOKEN = "8851034305:AAFEJS-F8FZBkjYFW3KTAPNPy1Remd5boOo"
-bot = telebot.TeleBot(TOKEN)
+# BOT VA ADMIN SOZLAMALARI
+BOT_TOKEN = "7449551322:AAEq_mN6k9-V3L4YmZfX2-0q1XN4b8v6X9Y"
+ADMIN_ID = 5541785551
 
-# 1. RENDER UCHUN FLASK WEB SERVERI
+bot = telebot.TeleBot(BOT_TOKEN)
 app = Flask(__name__)
 
+USER_DATA = {}
+# Tokenlar bazasi
+ACTIVE_TOKENS = {
+    "A7B9kL2pQ5xV1mR8", "w3N6zT9jH4fS7dK2", "m5Y2vC8xQ1nR9bL4", 
+    "k9P4fJ7sD2hV5xN3", "r1X6tM3qL8pZ2vH9", "v4B8nK1sF7jP3mQ5", 
+    "z2D7hG4rX9tL6bN8", "q5J3mV1pN8kS2fH7", "c9N2lD6xR4vP7kQ1", "b4H7fQ9jT2sL5nM3"
+}
+EXAM_ACTIVE = True
+
+CORRECT_ANSWERS = {
+    "1": "D", "2": "A", "3": "A", "4": "A", "5": "B", "7": "D", "8": "B", "9": "D", "10": "B",
+    "11": "A", "12": "B", "13": "D", "14": "A", "15": "C", "16": "B", "17": "C", "18": "C", "19": "A", "20": "A",
+    "21": "C", "23": "C", "24": "C", "25": "B", "27": "A", "28": "C", "29": "A", "30": "C", "31": "B", "32": "A",
+    "33": "F", "34": "E", "35": "D",
+    "36": "a) 80 mu, b) 6 sotix",
+    "37": "a) Italiya fashistik partiyasi, b) Milan",
+    "38": "a) 19 ta, b) 10%",
+    "39": "a) 143-a'zosi, b) Si Szinpin",
+    "40": "a) Mihail Romanov va Nikolay II, b) Pyotr I",
+    "41": "a) Iosip Broz Tito",
+    "42": "a) Marg'ilon, b) Oila muhiti va akasi Oxunjon",
+    "43": "a) Mirkomilboy, b) Turkiya",
+    "44": "a) Jimmi Karter, b) Eron islom inqilobi",
+    "45": "a) Afrasiyob, b) Varaxsha va Paykend"
+}
+# ==========================================
+# 2. BOT VA FLASK LOGIKASI
+# ==========================================
 @app.route('/')
-def index():
-    return "Bot is running..."
+def home():
+    return "Bot status: Running!"
 
 def run_flask():
-    port = int(os.environ.get("PORT", 10000))
-    app.run(host="0.0.0.0", port=port)
-
-# 45 talik Milliy sertifikat darajasidagi Tarix testi bazasi
-SAVOLLAR = {
-    # 1-BLOK (1-10)
-    1: {"tur": "variant", "savol": "1-savol: Qadimgi Baqtriya davlati hududida olib borilgan arxeologik qazishmalar davomida topilgan, ilk shaharsozlik madaniyatiga oid bo'lgan eng qadimgi yodgorlikni aniqlang.", "variantlar": ["Qo'ziqiriq", "Jonbozqal'a", "Sapallitepa", "Afrosiyob"], "javob": "Sapallitepa"},
-    2: {"tur": "variant", "savol": "2-savol: Miloddan avvalgi V asrda Afinada demokratik islohotlarni yanada mustahkamlab, xalq majlisining rolini oshirgan va strateg lavozimida uzoq muddat faoliyat yuritgan davlat arbobini ko'rsating.", "variantlar": ["Solon", "Perikl", "Klisfen", "Pisistrat"], "javob": "Perikl"},
-    3: {"tur": "variant", "savol": "3-savol: VI-VIII asrlarda O'rta Osiyo hududida pul muomalasi tizimida keng qo'llanilgan, sug'diy yozuvli va o'rtasi teshik mis tangalar asosan qaysi davlat boshqaruvi an'analariga taqlidan zarb qilingan?", "variantlar": ["Sosoniylar imperiyasi", "Xitoy (Tan sulolasi)", "Kushon qirolligi", "Vizantiya imperiyasi"], "javob": "Xitoy (Tan sulolasi)"},
-    4: {"tur": "variant", "savol": "4-savol: 1215-yilda Angliyada qabul qilingan va qirol hokimiyatini qonun yo'li bilan cheklab, fuqarolarning shaxsiy huquqlarini himoya qilishga zamin yaratgan hujjat qanday nomlanadi?", "variantlar": ["Huquqlar to'g'risidagi bill", "Buyuk erkinliklar xartiyasi (Magna Carta)", "Klarendon konstitutsiyalari", "To'rt modda shartnomasi"], "javob": "Buyuk erkinliklar xartiyasi (Magna Carta)"},
-    5: {"tur": "variant", "savol": "5-savol: Amir Temur harbiy yurishlari davomida raqiblariga nisbatan qo'llagan, qo'shinni jang maydonida markaz (qalb), o'ng qanot (maymana), chap qanot (maysara) va kanbullardan tashqari alohida 'g'ul' (gvardiya) sifatida bo'lish taktikasi qaysi jangda unga to'liq g'alaba keltirgan?", "variantlar": ["Loy jangi (1365-y)", "Terek daryosi bo'yidagi jang (1395-y)", "Anqara jangi (1402-y)", "Qunduzcha jangi (1391-y)"], "javob": "Qunduzcha jangi (1391-y)"},
-    6: {"tur": "variant", "savol": "6-savol: 1789-yilgi Buyuk Fransiya inqilobi davrida qabul qilingan, 'Barcha insonlar erkin va teng huquqli bo'lib tug'iladilar' degan g'oyani ilgari surgan tarixiy hujjatni belgilang.", "variantlar": ["Mustaqillik deklaratsiyasi", "Inson va fuqaro huquqlari deklaratsiyasi", "Konvent dekreti", "Napoleon kodeksi"], "javob": "Inson va fuqaro huquqlari deklaratsiyasi"},
-    7: {"tur": "variant", "savol": "7-savol: XVIII asrning ikkinchi yarmida Buxoro amirligida mang'itlar sulolasi hukronligini rasman boshlab bergan va davlat boshqaruvida markazlashtirish siyosatini olib borgan hukmdorni aniqlang.", "variantlar": ["Muhammad Rahimbiyliy", "Amir Shohmurod", "Amir Haydar", "Doniyorbiyliy"], "javob": "Muhammad Rahimbiyliy"},
-    8: {"tur": "variant", "savol": "8-savol: 1919-yilda Birinchi jahon urushi yakunlari bo'yicha tuzilgan va dunyoning yeni siyosiy xaritasi hamda xalqaro munosabatlar tizimini (Millatlar Ligasini) belgilab bergan shartnoma qaysi?", "variantlar": ["Boston shartnomasi", "Versal sulh shartnomasi", "Vashington bitimi", "Rapallo shartnomasi"], "javob": "Versal sulh shartnomasi"},
-    9: {"tur": "variant", "savol": "9-savol: 1867-yilda tuzilgan Turkiston general-gubernatorligining birinchi rahbari bo'lgan va o'lkada qat'iy harbiy-pauza boshqaruv tizimini joriy etgan general kim edi?", "variantlar": ["K.P. fon Kaufmann", "M.G. Chernyayev", "N.A. Ivanov", "A.V. Samsonov"], "javob": "K.P. fon Kaufmann"},
-    10: {"tur": "variant", "savol": "10-savol: O'zbekiston Respublikasining 1992-yil 8-dekabrda qabul qilingan Konstitutsiyasida davlat hokimiyatining bo'linish prinsipi qaysi moddada qat'iy belgilab qo'yilgan?", "variantlar": ["5-modda", "11-modda", "7-modda", "15-modda"], "javob": "11-modda"},
-
-    # 2-BLOK (11-20)
-    11: {"tur": "variant", "savol": "11-savol: Miloddan avvalgi 529-yilda massagetlar malikasi To'maris va Axamaniylar hukmdori Kir II o'rtasida bo'lib o'tgan tarixiy jang qaysi hudud yoki daryo bo'yida sodir bo'lgan deb taxmin qilinadi?", "variantlar": ["Amudaryo (Oks)", "Sirdaryo (Yaksart)", "Zarafshon (Politemet)", "Murg'ob"], "javob": "Amudaryo (Oks)"},
-    12: {"tur": "variant", "savol": "12-savol: Qadimgi Rimda plebeylar va patritsiylar o'rtasidagi uzoq muddatli kurashlar natijasida miloddan avvalgi V asr o'rtalarida qabul qilingan va Rim huquqining asosini tashkil etgan ilk yozma qonunlar majmuasini aniqlang.", "variantlar": ["Xammurapi qonunlari", "12 jadval qonunlari", "Solon qonunlari", "Yustinian kodeksi"], "javob": "12 jadval qonunlari"},
-    13: {"tur": "variant", "savol": "13-savol: VI asrning ikkinchi yarmida o'z qudratining cho'qqisiga erishgan va Sosoniylar eroni bilan ittifoqda eftaliylar davlatini tor-mor keltirgan xoqonlikni ko'rsating.", "variantlar": ["G'arbiy Turk xoqonligi", "Uyg'ur xoqonligi", "Turk xoqonligi", "Xazar xoqonligi"], "javob": "Turk xoqonligi"},
-    14: {"tur": "variant", "savol": "14-savol: IX-XI asrlarda Yevropada 'Vikinglar davri' nomi bilan mashhur bo'lgan, dengiz orqali bosqinchilik yurishlari uyushtirib, keyinchalik Normandiya gersogligi va Angliyada o'z sulolasini boshlagan shimollik xalqlar qanday atalgan?", "variantlar": ["Normanlar", "Vangallar", "Franklar", "Gotlar"], "javob": "Normanlar"},
-    15: {"tur": "variant", "savol": "15-savol: 1221-yilda Xorazmshohlar davlatining poytaxti Gurganj (Ko'hna Urganch) mudofaasiga boshchilik qilgan va mo'g'ullarga qarshi mardona kurashib halok bo'lgan xalq qahramonini belgilang.", "variantlar": ["Temur Malik", "Najmiddin Kubro", "Jaloliddin Manguberdi", "Mahmud Torobiy"], "javob": "Najmiddin Kubro"},
-    16: {"tur": "variant", "savol": "16-savol: 1640-1660-yillarda bo'lib o'tgan, qirol hokimiyati va parlament o'rtasidagi ziddiyatlar fuqarolar urushiga aylanib, Yevropada kapitalistik munosabatlarning rivojlanishiga kuchli turtki bergan inqilob qaysi davlatda sodir bo'lgan?", "variantlar": ["Fransiya", "Niderlandiya", "Angliya", "AQSH"], "javob": "Angliya"},
-    17: {"tur": "variant", "savol": "17-savol: XIX asrning birinchi yarmida Xiva xonligida markaziy hokimiyatni mustahkamlash, soliq tizimini tartibga solish va pul islohoti o'tkazib, oltin tangalar zarb ettirgan qo'ng'irotlar sulolasi vakilini aniqlang.", "variantlar": ["Eltuzarxon", "Muhammad Rahimxon I", "Olloqulixon", "Sayyid Muhammadxon"], "javob": "Muhammad Rahimxon I"},
-    18: {"tur": "variant", "savol": "18-savol: 1945-yil fevral oyida bo'lib o'tgan, unda Ikkinchi jahon urushidan keyingi dunyo tartiboti, Germaniyaning taqdiri va BMTni tuzish masalalari 'Katta uchlik' (Stalin, Ruzvelt, Cherchill) tomonidan hal qilingan konferensiyaniy ko'rsating.", "variantlar": ["Tehron konferensiyasi", "Potsdam konferensiyasi", "Yalta konferensiyasi", "San-Fransisko konferensiyasi"], "javob": "Yalta konferensiyasi"},
-    19: {"tur": "variant", "savol": "19-savol: 1916-yilda Turkiston o'lkasida mardikorlikka olish to'g'risidagi podsho farmoniga qarshi bosh ko'targan xalq qo'zg'olonining Jizzaxdagi rahbarlaridan biri kim edi?", "variantlar": ["Polvonniyoz hoji Yusupov", "Nazir xo'ja", "Qurbonjon dodxoh", "Bobo niyat og'li"], "javob": "Nazir xo'ja"},
-    20: {"tur": "variant", "savol": "20-savol: O'zbekiston Republicasi o'z mustaqilligini e'lon qilgandan so'ng, xalqaro hamjamiyatning teng huquqli a'zosiga aylanish yo'lida qaysi sanada Birlashgan Millatlar Tashkilotiga (BMT) rasman a'zo bo'lib qabul qilingan?", "variantlar": ["1991-yil 31-avgust", "1992-yil 2-mart", "1992-yil 8-dekabr", "1993-yil 10-may"], "javob": "1992-yil 2-mart"},
-
-    # 3-BLOK (21-30)
-    21: {"tur": "variant", "savol": "21-savol: Miloddan avvalgi IV asrning ikkinchi yarmida Aleksandr Makedonskiy qo'shinlariga qarshi Sug'diyona va Baqtriya hududida uch yil davomida (m.av. 329–327-yy.) partizanlik urushini olib borgan mard sarkardani aniqlang.", "variantlar": ["Spitamen", "Oksart", "batan", "To'maris"], "javob": "Spitamen"},
-    22: {"tur": "variant", "savol": "22-savol: Miloddan avvalgi III asrda Qadimgi Rim va Karfagen davlatlari o'rtasida O'rta yer dengizida hukmronlik qilish uchun boshlanib, uch bosqichda davom etgan va Karfagenning butkul vayron bo'lishi bilan yakunlangan urushlar qanday nomlanadi?", "variantlar": ["Midiya urushlari", "Puni urushlari", "Peloponnes urushlari", "Galliya urushlari"], "javob": "Puni urushlari"},
-    23: {"tur": "variant", "savol": "23-savol: Arab xalifaligi davrida (VIII asr boshlari) Movarounnahr hududini bosib olishga boshchilik qilgan va mahalliy hukmdorlar o'rtasidagi parokandalikdan foydalanib, Buxoro, Samarqand va Xorazmni bo'ysundirgan arab sarkardasi kim edi?", "variantlar": ["Qutayba ibn Muslim", "Abu Muslim", "Nasr ibn Sayyor", "Ziyod ibn Solih"], "javob": "Qutayba ibn Muslim"},
-    24: {"tur": "variant", "savol": "24-savol: 1453-yilda Usmonli turklar sultonligi tomonidan Konstantinopol shahrining zabt etilishi qaysi buyuk imperiyaning rasman tugatilishiga olib keldi?", "variantlar": ["Muqaddas Rim imperiyasi", "G'arbiy Rim imperiyasi", "Vizantiya imperiyasi", "Franklar qirolligi"], "javob": "Vizantiya imperiyasi"},
-    25: {"tur": "variant", "savol": "25-savol: Temuriylar davri madaniy hayotida muhim o'rin tutgan, XV asrda Hirotda o'zining noyob asarlari bilan miniatyura san'atini eng yuksak cho'qqiga olib chiqqan va 'Sharq Rafaeli' deb nom olgan musavvirni ko'rsating.", "variantlar": ["Kamoliddin Behzod", "Mirak Naqqosh", "Sulton Ali Mashhadiy", "Davlatshoh Samarqandiy"], "javob": "Kamoliddin Behzod"},
-    26: {"tur": "variant", "savol": "26-savol: 1861-1865-yillarda AQSHda shimoliy va janubiy shtatlar o'rtasidagi fuqarolar urushida qullikni rasman bekor qilish to'g'risidagi deklaratsiyani imzolagan AQSH prezidentini aniqlang.", "variantlar": ["Jorj Vashington", "Tomas Joferson", "Avraam Linkoln", "Teodor Ruzvelt"], "javob": "Avraam Linkoln"},
-    27: {"tur": "variant", "savol": "27-savol: 1842-yilda Buxoro amiri Nasrullaxon tomonidan Qo'qon xonligi poytaxtining bosib olinishi va Qo'qon hukmdori Muhammad Alixonning qatl etilishiga mahalliy aholining noroziligi sabab bo'lib, xonlik taxtiga kim o'tqaziladi?", "variantlar": ["Sheralixon", "Xudoyorxon", "Mallaxon", "Olimxon"], "javob": "Sheralixon"},
-    28: {"tur": "variant", "savol": "28-savol: 1962-yilda AQSH va SSSR o'rtasidagi Yamayka yaqinidagi orolda joylashtirilgan yadro raketalari sababli kelib chiqqan va dunyoni uchinchi jahon urushi yoqasiga olib kenan xalqaro siyosiy inqiroz qanday ataladi?", "variantlar": ["Berlin inqirozi", "Karib inqirozi", "Suvaysh inqirozi", "Koreya urushi"], "javob": "Karib inqirozi"},
-    29: {"tur": "variant", "savol": "29-savol: XIX asr oxiri va XX asr boshlarida Turkistonda vujudga kelgan, milliy uyg'onish, maktablarni isloh qilish, gazeta va teatr orqali xalqni ma'rifatli qilishni maqsad qilgan ijtimoiy-siyosiy harakat vakillari qanday nomlangan?", "variantlar": ["Jadidlar", "Qizilboshlilar", "Eshonlar", "Muxtoriyatchilar"], "javob": "Jadidlar"},
-    30: {"tur": "variant", "savol": "30-savol: O'zbekiston Respublikasining mustaqillik yillarida qabul qilingan, ta'lim tizimini tubdan isloh qilish va kadrlar tayyorlashning milliy modelini yaratishga qaratilgan eng muhim dasturiy qonun hujjati qaysi?", "variantlar": ["Yoshlarga oid davlat siyosati to'g'risidagi Qonun", "Ta'lim to'g'risidaxi Qonun", "Ma'naviyat va ma'rifat konsepsiyasi", "Innovatsion faoliyat to'g'risidaxi Qonun"], "javob": "Ta'lim to'g'risidaxi Qonun"},
-    # 4-BLOK (31-40)
-    31: {"tur": "variant", "savol": "31-savol: Milodiy I-IV asrlarda Markaziy Osiyo, Afg'oniston va Shimoliy Hindiston hududlarini birlashtirgan, Kanishka I davrida o'z qudratining cho'qqisiga chiqib, buddizm dinini davlat miqyosida qo'llab-quvvatlagan imperiyani aniqlang.", "variantlar": ["Parfiya qirolligi", "Kushon imperiyasi", "Eftaliylar davlati", "Kangyu davlati"], "javob": "Kushon imperiyasi"},
-    32: {"tur": "variant", "savol": "32-savol: Miloddan avvalgi 331-yilda Aleksandr Makedonskiy va Eronda Axamaniylar hukmdori Doro III o'rtasida bo'lib o'tgan, Eron qo'shinlarining mutqlo mag'lubiyati va Axamaniylar imperiyasining parchalanishiga olib kelgan hal qiluvchi jangni ko'rsating.", "variantlar": ["Granik jangi", "Iss jangi", "Gavgamela jangi", "Xeronoya jangi"], "javob": "Gavgamela jangi"},
-    33: {"tur": "variant", "savol": "33-savol: IX Asr oxirida Movarounnahrni yagona davlatga birga keltirib, poytaxtni Buxoro shahriga ko'chirgan va somoniylar sulolasining mustaqil davlatiga asos solgan hukmdorni belgilang.", "variantlar": ["Ismoil Somoniy", "Nasr I ibn Ahmad", "Ahmad ibn Asad", "Nuh ibn Mansur"], "javob": "Ismoil Somoniy"},
-    34: {"tur": "variant", "savol": "34-savol: XI asr oxirida (1095-yil) Klermon soborida xristian dunyosini muqaddas Quddus (Iyerusalim) shahrini musulmonlardan qaytarib olishga chaqirib, 'Salb yurishlari'ni boshlab bergan Rim papasi kim edi?", "variantlar": ["Urban II", "Innokentiy III", "Grigoriy VII", "Bonifatsiy VIII"], "javob": "Urban II"},
-    35: {"tur": "variant", "savol": "35-savol: 1447-1449-yillarda Temuriylar imperiyasini boshqargan, fanda yuksak kashfiyotlar qibly, 'Ziji jadidi Ko'ragoniy' yulduzlar jadvalini yaratgan buyuk astronom-hukmdor kim?", "variantlar": ["Shohruh Mirzo", "Mirzo Ulug'bek", "Sulton Husayn Boyqaro", "Abu Said Mirzo"], "javob": "Mirzo Ulug'bek"},
-    36: {"tur": "variant", "savol": "36-savol: XIX asrning ikkinchi yarmida 'Temir kansler' taxallusi bilan mashhur bo'lgan va tarqoq nemis yerlarini 'qon va temir' siyosati orqali yagona Prussiya atrofiga birlashtirib, Germaniya imperiyasini tuzgan davlat arbobini aniqlang.", "variantlar": ["Otto fon Bismark", "Vilgelm I", "Napoleon III", "Klemens fon Metternix"], "javob": "Otto fon Bismark"},
-    37: {"tur": "variant", "savol": "37-savol: XIX asr o'rtalarida Qo'qon xonligida ichki nizolar va qipchoqlar ta'siri kuchaygan davrda, taxtga uch marta o'tirgan va Rossiya imperiyasi qo'shinlarining hujumlariga qarshi kurashgan hukmdorni ko'rsating.", "variantlar": ["Xudoyorxon", "Sheralixon", "Po'latxon", "Nasriddinxon"], "javob": "Xudoyorxon"},
-    38: {"tur": "variant", "savol": "38-savol: 1939-yil 23-avgustda SSSR va Germaniya o'rtasidagi imzolangan, o'zaro hujum qilmaslik va Sharqiy Yevropani ta'sir doiralariga bo'lib olishni ko'zda tutgan maxfiy bitim tarixda qanday nom bilan ataladi?", "variantlar": ["Molotov-Ribbentrop pakti", "Myunxen kelishuvi", "Anti-Komintern pakti", "Lokarno shartnomasi"], "javob": "Molotov-Ribbentrop pakti"},
-    39: {"tur": "variant", "savol": "39-savol: O'zbekiston SSR hududida 1980-yillarning ikkinchi yarmida Moskva markaziy hukumati tomonidan uyushtirilgan, respublikaning ko'plab rahbarlari va mutaxassislarini asossiz qatag'on qilishga qaratilgan siyosiy kompaniya nima deb atalgan?", "variantlar": ["Paxta ishi", "Katta qatag'on", "Kosmopolitizmga qarshi kurash", "Xalq dushmanlarini tugatish"], "javob": "Paxta ishi"},
-    40: {"tur": "variant", "savol": "40-savol: O'zbekiston Respublikasi jahon hamjamiyati bilan iqtisodiy va logistik aloqalarni mustahkamlash maqsadida qaysi yilda qadimiy 'Buyuk Ipak yo'li'ni qayta tiklash ramzi bo'lgan transmilliy 'Asr loyihasi' — Qamchiq dovoni orqali o'tgan Angren-Pop elektrlashtirilgan temir yo'lini rasman ishga tushirdi?", "variantlar": ["2012-yil", "2016-yil", "2018-yil", "2020-yil"], "javob": "2016-yil"},
-
-    # 5-BLOK: YOZMA SAVOLLAR (41-45)
-    41: {"tur": "yozma", "savol": "41-savol (Yozma): Qadimgi Bobil davlatining eng mashhur hukmdori, miloddan avvalgi XVIII asrda dunyoda birinchi bo'lib qat'iy va mukammal yozma qonunlar to'plamini tuzdirgan shaxsning ismini yozing.", "javob": "Xammurapi"},
-    42: {"tur": "yozma", "savol": "42-savol (Yozma): 1220-yilda Samarqand shahrini mo'g'ullar bosqinidan mardona himoya qilgan, ammo sotqinlik tufayli shahar taslim bo'lgach, o'zining kichik guruhi bilan dushman halqasini yorib chiqib, Sirdaryo bo'yidagi Xujand shahrida mudofaani davom ettirgan Xorazmshohlar sarkardasi kim edi?", "javob": "Temur Malik"},
-    43: {"tur": "yozma", "savol": "43-savol (Yozma): 1492-yilda Ispaniya qiroli ko'magida g'arbiy yo'nalish bo'ylab Hindistonga dengiz yo'lini qidirib yo'lga chiqqan va Yevropaliklar uchun mutqlo noma'lum bo'lgan yangi qit'ani (Amerikani) kashf etgan dengiz sayyohining ismini yozing.", "javob": "Xristofor Kolumb"},
-    44: {"tur": "yozma", "savol": "44-savol (Yozma): 1898-yilda chor Rossiyasining mustamlakachilik va zulm siyosatiga qarshi Farg'ona vodiysida (Andijonda) bosh ko'targan yirik xalq qo'zg'olonining g'oyaviy rahbari bo'lgan shaxsning ismini yozing.", "javob": "Dukchi Eshon"},
-    45: {"tur": "yozma", "savol": "45-savol (Yozma): O'zbekiston Respublikasi o'z mustaqilligining huquqiy asoslarini mustahkamlab, mustaqil ichki va tashqi siyosat yuritish kafolati bo'lgan 'Mustaqillik deklaratsiyasi'ni nechanchi yilning qaysi sanasida (kun va oy, masalan: 20-iyun) qabul qilgan?", "javob": "20-iyun"}
-}
-
-USER_TESTS = {}
+    app.run(host="0.0.0.0", port=10000)
 
 @bot.message_handler(commands=['start'])
 def send_welcome(message):
-    user_name = message.from_user.first_name
-    bot.send_message(
-        message.chat.id,
-        f"Assalomu alaykum, {user_name}! 👋\n\n"
-        "Tarix fanidan Milliy sertifikat darajasidagi 45 talik rasmiy test tizimiga xush kelibsiz.\n\n"
-        "🔑 Imtihonni faollashtirish va birinchi 10 ta savolni olish uchun maxsus test kodini yuboring:"
-    )
+    chat_id = message.chat.id
+    if chat_id == ADMIN_ID:
+        bot.send_message(chat_id, "Admin, testni yakunlash uchun /yakunlash yuboring.")
+        return
+    USER_DATA[chat_id] = {"step": "name", "name": None, "answers": None}
+    bot.send_message(chat_id, "Ism va familiyangizni kiriting:")
 
 @bot.message_handler(func=lambda message: True)
 def handle_text(message):
     chat_id = message.chat.id
     text = message.text.strip()
 
-    if text == "6789002":
-        USER_TESTS[chat_id] = {
-            "current_q": 1,
-            "score": 0,
-            "answers": {},
-            "paket_limit": 10
-        }
-        bot.send_message(chat_id, "✅ Imtihon kodi qabul qilindi!\nTarix fanidan 45 talik test boshlanmoqda. Omad tilaymiz! 🚀")
-        yuborish_savol(chat_id)
+    if chat_id == ADMIN_ID and text == "/yakunlash":
+        handle_yakunlash_start(message)
         return
-
-    if chat_id in USER_TESTS:
-        status = USER_TESTS[chat_id]
-        q_num = status["current_q"]
-        
-        if q_num <= 45 and SAVOLLAR[q_num]["tur"] == "yozma":
-            togri_javob = SAVOLLAR[q_num]["javob"].lower()
-            if text.lower() in togri_javob or togri_javob in text.lower():
-                status["score"] += 1
-                status["answers"][q_num] = f"✅ Savol {q_num}: To'g'ri (Siz: {text})"
-            else:
-                status["answers"][q_num] = f"❌ Savol {q_num}: Noto'g'ri (Siz: {text} | Asli: {SAVOLLAR[q_num]['javob']})"
-            
-            status["current_q"] += 1
-            yuborish_savol(chat_id)
-        else:
-            bot.send_message(chat_id, "⚠️ Iltimos, savollarga variant tugmalari orqali javob bering.")
-    else:
-        bot.send_message(chat_id, "❌ Noto'g'ri kod kiritdingiz yoki imtihon faol emas.")
-
-def yuborish_savol(chat_id):
-    status = USER_TESTS[chat_id]
-    q_num = status["current_q"]
-
-    if q_num > 45:
-        yakunlash_test(chat_id)
-        return
-
-    if q_num > status["paket_limit"]:
-        status["paket_limit"] += 10
-        markup = types.InlineKeyboardMarkup()
-        markup.add(types.InlineKeyboardButton(text="➡️ Keyingi 10 ta savol", callback_data="next_packet"))
-        bot.send_message(chat_id, "⏸ Dastlabki blok tugadi. Keyingi blok savollariga tayyor bo'lsangiz, quyidagi tugmani bosing:", reply_markup=markup)
-        return
-
-    savol_data = SAVOLLAR[q_num]
-
-    if savol_data["tur"] == "variant":
-        markup = types.InlineKeyboardMarkup(row_width=2)
-        buttons = [types.InlineKeyboardButton(text=v, callback_data=f"ans_{q_num}_{v}") for v in savol_data["variantlar"]]
-        markup.add(*buttons)
-        bot.send_message(chat_id, savol_data["savol"], reply_markup=markup)
-        
-    elif savol_data["tur"] == "yozma":
-        bot.send_message(chat_id, f"📝 {savol_data['savol']}\n\n⚠️ Diqqat! Javobni klaviaturada matn yoki ism shaklida yozib yuboring:")
-
-@bot.callback_query_handler(func=lambda call: True)
-def handle_callback(call):
-    chat_id = call.message.chat.id
-
-    if chat_id not in USER_TESTS:
-        bot.answer_callback_query(call.id, "Imtihon jarayoni faol emas.")
-        return
-
-    status = USER_TESTS[chat_id]
-
-    if call.data == "next_packet":
-        bot.delete_message(chat_id, call.message.message_id)
-        yuborish_savol(chat_id)
-        return
-
-    if call.data.startswith("ans_"):
-        parts = call.data.split("_")
-        q_num = int(parts[1])
-        tanlangan_javob = "_".join(parts[2:])
-
-        if q_num != status["current_q"]:
-            bot.answer_callback_query(call.id, "Faqat joriy savolga javob bera olasiz!")
-            return
-
-        togri_javob = SAVOLLAR[q_num]["javob"]
-        if tanlangan_javob == togri_javob:
-            status["score"] += 1
-            status["answers"][q_num] = f"✅ Savol {q_num}: To'g'ri"
-        else:
-            status["answers"][q_num] = f"❌ Savol {q_num}: Noto'g'ri (Siz: {tanlangan_javob} | Asli: {togri_javob})"
-
-        bot.edit_message_text(chat_id=chat_id, message_id=call.message.message_id, text=f"{SAVOLLAR[q_num]['savol']}\n\n📥 Javob saqlandi.")
-        
-        status["current_q"] += 1
-        yuborish_savol(chat_id)
-
-def yakunlash_test(chat_id):
-    status = USER_TESTS[chat_id]
-    score = status["score"]
-    foiz = (score / 45) * 100
-
-    tahlil_matni = "🏁 **IMTIHON YAKUNLANDI!**\n\n"
-    tahlil_matni += f"📊 Jami savollar: 45 ta\n"
-    tahlil_matni += f"✅ To'g'ri javoblar: {score} ta\n"
-    tahlil_matni += f"❌ Noto'g'ri javoblar: {45 - score} ta\n"
-    tahlil_matni += f"🎯 Umumiy ko'rsatkich: {foiz:.1f}%\n\n"
-    tahlil_matni += "📜 **Savollar bo'yicha batafsil hisobot:**\n"
     
-    for i in range(1, 46):
-        if i in status["answers"]:
-            tahlil_matni += f"{status['answers'][i]}\n"
+    if chat_id not in USER_DATA: return
+    
+    user = USER_DATA[chat_id]
+    
+    if user["step"] == "name":
+        user["name"] = text
+        user["step"] = "token"
+        bot.send_message(chat_id, "Tokeningizni kiriting:")
+        
+    elif user["step"] == "token":
+        if text in ACTIVE_TOKENS:
+            ACTIVE_TOKENS.remove(text)
+            user["step"] = "answers"
+            bot.send_message(chat_id, "Token to'g'ri! Endi javoblaringizni yuboring (masalan: 1-A, 2-B...):")
+        else:
+            bot.send_message(chat_id, "Noto'g'ri yoki ishlatilgan token! Qaytadan urinib ko'ring.")
             
-    bot.send_message(chat_id, tahlil_matni, parse_mode="Markdown")
-    del USER_TESTS[chat_id]
+    elif user["step"] == "answers":
+        user["answers"] = text
+        user["date"] = datetime.now().strftime("%d.%m.%y")
+        user["time"] = datetime.now().strftime("%H:%M")
+        user["step"] = "done"
+        bot.send_message(chat_id, "Javoblaringiz qabul qilindi. Natijalar admin yakunlagandan keyin yuboriladi.")
+            # ==========================================
+# 3. NATIJALARNI HISOBLASH VA PDF GENERATOR
+# ==========================================
+def parse_user_answers(raw_text):
+    parsed = {}
+    lines = raw_text.replace(",", "\n").split("\n")
+    for line in lines:
+        if "-" in line:
+            parts = line.split("-", 1)
+            q_num = parts[0].strip()
+            q_ans = parts[1].strip().upper()
+            parsed[q_num] = q_ans
+    return parsed
 
-# Flaskni va Botni parallel yurgizish
+def get_daraja(percentage):
+    if percentage >= 86: return "A+"
+    elif percentage >= 70: return "A"
+    elif percentage >= 60: return "B+"
+    elif percentage >= 50: return "B"
+    else: return "C"
+
+def process_results_and_send():
+    results_list = []
+    for chat_id, data in USER_DATA.items():
+        if "answers" not in data: continue
+        
+        user_answers = parse_user_answers(data["answers"])
+        correct_count = sum(1 for q, ans in CORRECT_ANSWERS.items() if user_answers.get(q, "").lower() in ans.lower() or ans.lower() in user_answers.get(q, "").lower())
+        
+        total = len(CORRECT_ANSWERS)
+        foiz = round((correct_count / total) * 100, 2)
+        ball = round(foiz * 0.86, 2)
+        
+        results_list.append({
+            "chat_id": chat_id, "name": data["name"], "score": correct_count,
+            "ball": ball, "foiz": f"{foiz}%", "daraja": get_daraja(foiz),
+            "date": data["date"], "time": data["time"]
+        })
+    
+    results_list.sort(key=lambda x: x["ball"], reverse=True)
+    create_pdf(results_list)
+    # ==========================================
+# 4. PDF GENERATOR, YUBORISH VA START
+# ==========================================
+def create_pdf(results_list):
+    pdf_filename = "Natijalar.pdf"
+    doc = SimpleDocTemplate(pdf_filename, pagesize=letter)
+    styles = getSampleStyleSheet()
+    
+    elements = [Paragraph("<b>Tarix Sertifikat Test Natijalari</b>", styles['Heading1']), Spacer(1, 10)]
+    
+    table_data = [["№", "Ism-familiya", "Ball", "Foiz", "To'g'ri", "Daraja", "Sana", "Vaqt"]]
+    for idx, res in enumerate(results_list, start=1):
+        table_data.append([str(idx), res["name"], str(res["ball"]), res["foiz"], str(res["score"]), res["daraja"], res["date"], res["time"]])
+    
+    t = Table(table_data, colWidths=[30, 150, 40, 50, 40, 40, 60, 50])
+    elements.append(t)
+    doc.build(elements)
+    
+    with open(pdf_filename, 'rb') as pdf:
+        bot.send_document(ADMIN_ID, pdf, caption="📊 Yakuniy natijalar jadvali.")
+        for res in results_list:
+            pdf.seek(0)
+            try:
+                bot.send_document(res["chat_id"], pdf, caption=f"📢 Natijangiz: {res['ball']} ball.")
+            except: pass
+    if os.path.exists(pdf_filename): os.remove(pdf_filename)
+
+def handle_yakunlash_start(message):
+    global EXAM_ACTIVE
+    EXAM_ACTIVE = False
+    process_results_and_send()
+
 if __name__ == "__main__":
-    # Flask alohida oqimda ishlaydi
     threading.Thread(target=run_flask, daemon=True).start()
-    # Bot esa asosiy oqimda to'xtovsiz ishlaydi
+    print("Bot ishga tushdi...")
     bot.infinity_polling()
