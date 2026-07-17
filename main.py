@@ -136,7 +136,7 @@ def yuborish_savol(chat_id):
         status["paket_limit"] += 10
         markup = types.InlineKeyboardMarkup()
         markup.add(types.InlineKeyboardButton(text="➡️ Keyingi 10 ta savol", callback_data="next_packet"))
-        bot.send_message(chat_id, f"⏸ Dastlabki blok tugadi. Keyingi blok savollariga tayyor bo'lsangiz, quyidagi tugmani bosing:", reply_markup=markup)
+        bot.send_message(chat_id, "⏸ Dastlabki blok tugadi. Keyingi blok savollariga tayyor bo'lsangiz, quyidagi tugmani bosing:", reply_markup=markup)
         return
 
     savol_data = SAVOLLAR[q_num]
@@ -145,4 +145,4 @@ def yuborish_savol(chat_id):
         markup = types.InlineKeyboardMarkup(row_width=2)
         buttons = [types.InlineKeyboardButton(text=v, callback_data=f"ans_{q_num}_{v}") for v in savol_data["variantlar"]]
         markup.add(*buttons)
-        bot.send_message(chat_id, savol_data["savol"], reply_markup
+        bot.send_message(chat_id, savol_data["savol"], reply_markup=
