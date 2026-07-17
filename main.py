@@ -145,4 +145,68 @@ def yuborish_savol(chat_id):
         markup = types.InlineKeyboardMarkup(row_width=2)
         buttons = [types.InlineKeyboardButton(text=v, callback_data=f"ans_{q_num}_{v}") for v in savol_data["variantlar"]]
         markup.add(*buttons)
-        bot.send_message(chat_id, savol_data["savol"], reply_markup
+        bot.send_message(chat_id, savol_data["savol"], reply_markup)
+        elif savol_data["tur"] == "yozma":
+        bot.send_message(chat_id, f"📝 {savol_data['savol']}\n\n⚠️ Diqqat! Javobni klaviaturada matn yoki ism shaklida yozib yuboring:")
+
+@bot.callback_query_handler(func=lambda call: True)
+def handle_callback(call):
+    chat_id = call.message.chat.id
+
+    if chat_id not in USER_TESTS:
+        bot.answer_callback_query(call.id, "Imtihon jarayoni faol emas.")
+        return
+
+    status = USER_TESTS[chat_id]
+
+    if call.data == "next_packet":
+        bot.delete_message(chat_id, call.message.message_id)
+        yuborish_savol(chat_id)
+        return
+
+    if call.data.startswith("ans_"):
+        parts = call.data.split("_")
+        q_num = int(parts[1])
+        tanlangan_javob = "_".join(parts[2:])
+
+        if q_num != status["current_q"]:
+            bot.answer_callback_query(call.id, "Faqat joriy savolga javob bera olasiz!")
+            return
+
+        togri_javob = SAVOLLAR[q_num]["javob"]
+        if tanlangan_javob == togri_javob:
+            status["score"] += 1
+            status["answers"][q_num] = f"✅ Savol {q_num}: To'g'ri"
+        else:
+            status["answers"][q_num] = f"❌ Savol {q_num}: Noto'g'ri (Siz: {tanlangan_javob} | Asli: {togri_javob})"
+
+        bot.edit_message_text(chat_id=chat_id, message_id=call.message.message_id, text=f"{SAVOLLAR[q_num]['savol']}\n\n📥 Javob saqlandi.")
+        
+        status["current_q"] += 1
+        yuborish_savol(chat_id)
+
+def yakunlash_test(chat_id):
+    status = USER_TESTS[chat_id]
+    score = status["score"]
+    foiz = (score / 45) * 100
+
+    tahlil_matni = "🏁 **IMTIHON YAKUNLANDI!**\n\n"
+    tahlil_matni += f"📊 Jami savollar: 45 ta\n"
+    tahlil_matni += f"✅ To'g'ri javoblar: {score} ta\n"
+    tahlil_matni += f"❌ Noto'g'ri javoblar: {45 - score} ta\n"
+    tahlil_matni += f"🎯 Umumiy ko'rsatkich: {foiz:.1f}%\n\n"
+    tahlil_matni += "📜 **Savollar bo'yicha batafsil hisobot:**\n"
+    
+    for i in range(1, 46):
+        if i in status["answers"]:
+            tahlil_matni += f"{status['answers'][i]}\n"
+            
+    bot.send_message(chat_id, tahlil_matni, parse_mode="Markdown")
+    del USER_TESTS[chat_id]
+
+# Flaskni va Botni parallel yurgizish
+if __name__ == "__main__":
+    # Flask alohida oqimda ishlaydi
+    threading.Thread(target=run_flask, daemon=True).start()
+    # Bot esa asosiy oqimda to'xtovsiz ishlaydi
+    bot.infinity_polling()
