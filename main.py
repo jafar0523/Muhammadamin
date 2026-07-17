@@ -1,31 +1,23 @@
 import telebot
 from telebot import types
+from flask import Flask
 import threading
-from http.server import BaseHTTPRequestHandler, HTTPServer
 import os
 
 # Botingiz tokensini shu yerga qo'ying
 TOKEN = "8851034305:AAFEJS-F8FZBkjYFW3KTAPNPy1Remd5boOo"
 bot = telebot.TeleBot(TOKEN)
 
-# 1. RENDER PORT XATOLIGINI TUZATISH UCHUN SEXTA WEB-SERVER
-class DummyServer(BaseHTTPRequestHandler):
-    def do_GET(self):
-        self.send_response(200)
-        self.send_header("Content-type", "text/html")
-        self.end_headers()
-        self.wfile.write(b"Bot is running...")
+# 1. RENDER UCHUN FLASK WEB SERVERI
+app = Flask(__name__)
 
-def run_web_server():
-    # Render o'zi avtomatik taqdim etadigan portni olamiz, topilmasa 10000 ni ishlatamiz
+@app.route('/')
+def index():
+    return "Bot is running..."
+
+def run_flask():
     port = int(os.environ.get("PORT", 10000))
-    server = HTTPServer(("0.0.0.0", port), DummyServer)
-    print(f"Web server started on port {port}")
-    server.serve_forever()
-
-# Web-serverni alohida oqimda (thread) ishga tushiramiz, u botning ishlashiga xalaqit bermaydi
-threading.Thread(target=run_web_server, daemon=True).start()
-
+    app.run(host="0.0.0.0", port=port)
 
 # 45 talik Milliy sertifikat darajasidagi Tarix testi bazasi
 SAVOLLAR = {
@@ -51,7 +43,7 @@ SAVOLLAR = {
     17: {"tur": "variant", "savol": "17-savol: XIX asrning birinchi yarmida Xiva xonligida markaziy hokimiyatni mustahkamlash, soliq tizimini tartibga solish va pul islohoti o'tkazib, oltin tangalar zarb ettirgan qo'ng'irotlar sulolasi vakilini aniqlang.", "variantlar": ["Eltuzarxon", "Muhammad Rahimxon I", "Olloqulixon", "Sayyid Muhammadxon"], "javob": "Muhammad Rahimxon I"},
     18: {"tur": "variant", "savol": "18-savol: 1945-yil fevral oyida bo'lib o'tgan, unda Ikkinchi jahon urushidan keyingi dunyo tartiboti, Germaniyaning taqdiri va BMTni tuzish masalalari 'Katta uchlik' (Stalin, Ruzvelt, Cherchill) tomonidan hal qilingan konferensiyaniy ko'rsating.", "variantlar": ["Tehron konferensiyasi", "Potsdam konferensiyasi", "Yalta konferensiyasi", "San-Fransisko konferensiyasi"], "javob": "Yalta konferensiyasi"},
     19: {"tur": "variant", "savol": "19-savol: 1916-yilda Turkiston o'lkasida mardikorlikka olish to'g'risidagi podsho farmoniga qarshi bosh ko'targan xalq qo'zg'olonining Jizzaxdagi rahbarlaridan biri kim edi?", "variantlar": ["Polvonniyoz hoji Yusupov", "Nazir xo'ja", "Qurbonjon dodxoh", "Bobo niyat og'li"], "javob": "Nazir xo'ja"},
-    20: {"tur": "variant", "savol": "20-savol: O'zbekiston Respublikasi o'z mustaqilligini e'lon qilgandan so'ng, xalqaro hamjamiyatning teng huquqli a'zosiga aylanish yo'lida qaysi sanada Birlashgan Millatlar Tashkilotiga (BMT) rasman a'zo bo'lib qabul qilingan?", "variantlar": ["1991-yil 31-avgust", "1992-yil 2-mart", "1992-yil 8-dekabr", "1993-yil 10-may"], "javob": "1992-yil 2-mart"},
+    20: {"tur": "variant", "savol": "20-savol: O'zbekiston Republicasi o'z mustaqilligini e'lon qilgandan so'ng, xalqaro hamjamiyatning teng huquqli a'zosiga aylanish yo'lida qaysi sanada Birlashgan Millatlar Tashkilotiga (BMT) rasman a'zo bo'lib qabul qilingan?", "variantlar": ["1991-yil 31-avgust", "1992-yil 2-mart", "1992-yil 8-dekabr", "1993-yil 10-may"], "javob": "1992-yil 2-mart"},
 
     # 3-BLOK (21-30)
     21: {"tur": "variant", "savol": "21-savol: Miloddan avvalgi IV asrning ikkinchi yarmida Aleksandr Makedonskiy qo'shinlariga qarshi Sug'diyona va Baqtriya hududida uch yil davomida (m.av. 329–327-yy.) partizanlik urushini olib borgan mard sarkardani aniqlang.", "variantlar": ["Spitamen", "Oksart", "batan", "To'maris"], "javob": "Spitamen"},
@@ -73,7 +65,7 @@ SAVOLLAR = {
     35: {"tur": "variant", "savol": "35-savol: 1447-1449-yillarda Temuriylar imperiyasini boshqargan, fanda yuksak kashfiyotlar qibly, 'Ziji jadidi Ko'ragoniy' yulduzlar jadvalini yaratgan buyuk astronom-hukmdor kim?", "variantlar": ["Shohruh Mirzo", "Mirzo Ulug'bek", "Sulton Husayn Boyqaro", "Abu Said Mirzo"], "javob": "Mirzo Ulug'bek"},
     36: {"tur": "variant", "savol": "36-savol: XIX asrning ikkinchi yarmida 'Temir kansler' taxallusi bilan mashhur bo'lgan va tarqoq nemis yerlarini 'qon va temir' siyosati orqali yagona Prussiya atrofiga birlashtirib, Germaniya imperiyasini tuzgan davlat arbobini aniqlang.", "variantlar": ["Otto fon Bismark", "Vilgelm I", "Napoleon III", "Klemens fon Metternix"], "javob": "Otto fon Bismark"},
     37: {"tur": "variant", "savol": "37-savol: XIX asr o'rtalarida Qo'qon xonligida ichki nizolar va qipchoqlar ta'siri kuchaygan davrda, taxtga uch marta o'tirgan va Rossiya imperiyasi qo'shinlarining hujumlariga qarshi kurashgan hukmdorni ko'rsating.", "variantlar": ["Xudoyorxon", "Sheralixon", "Po'latxon", "Nasriddinxon"], "javob": "Xudoyorxon"},
-    38: {"tur": "variant", "savol": "38-savol: 1939-yil 23-avgustda SSSR va Germaniya o'rtasida imzolangan, o'zaro hujum qilmaslik va Sharqiy Yevropani ta'sir doiralariga bo'lib olishni ko'zda tutgan maxfiy bitim tarixda qanday nom bilan ataladi?", "variantlar": ["Molotov-Ribbentrop pakti", "Myunxen kelishuvi", "Anti-Komintern pakti", "Lokarno shartnomasi"], "javob": "Molotov-Ribbentrop pakti"},
+    38: {"tur": "variant", "savol": "38-savol: 1939-yil 23-avgustda SSSR va Germaniya o'rtasidagi imzolangan, o'zaro hujum qilmaslik va Sharqiy Yevropani ta'sir doiralariga bo'lib olishni ko'zda tutgan maxfiy bitim tarixda qanday nom bilan ataladi?", "variantlar": ["Molotov-Ribbentrop pakti", "Myunxen kelishuvi", "Anti-Komintern pakti", "Lokarno shartnomasi"], "javob": "Molotov-Ribbentrop pakti"},
     39: {"tur": "variant", "savol": "39-savol: O'zbekiston SSR hududida 1980-yillarning ikkinchi yarmida Moskva markaziy hukumati tomonidan uyushtirilgan, respublikaning ko'plab rahbarlari va mutaxassislarini asossiz qatag'on qilishga qaratilgan siyosiy kompaniya nima deb atalgan?", "variantlar": ["Paxta ishi", "Katta qatag'on", "Kosmopolitizmga qarshi kurash", "Xalq dushmanlarini tugatish"], "javob": "Paxta ishi"},
     40: {"tur": "variant", "savol": "40-savol: O'zbekiston Respublikasi jahon hamjamiyati bilan iqtisodiy va logistik aloqalarni mustahkamlash maqsadida qaysi yilda qadimiy 'Buyuk Ipak yo'li'ni qayta tiklash ramzi bo'lgan transmilliy 'Asr loyihasi' — Qamchiq dovoni orqali o'tgan Angren-Pop elektrlashtirilgan temir yo'lini rasman ishga tushirdi?", "variantlar": ["2012-yil", "2016-yil", "2018-yil", "2020-yil"], "javob": "2016-yil"},
 
@@ -102,7 +94,6 @@ def handle_text(message):
     chat_id = message.chat.id
     text = message.text.strip()
 
-    # 1. TEST KODINI TEKSHIRISH
     if text == "6789002":
         USER_TESTS[chat_id] = {
             "current_q": 1,
@@ -114,14 +105,12 @@ def handle_text(message):
         yuborish_savol(chat_id)
         return
 
-    # 2. YOZMA SAVOLLAR JAVOBLARINI QABUL QILISH
     if chat_id in USER_TESTS:
         status = USER_TESTS[chat_id]
         q_num = status["current_q"]
         
         if q_num <= 45 and SAVOLLAR[q_num]["tur"] == "yozma":
             togri_javob = SAVOLLAR[q_num]["javob"].lower()
-            
             if text.lower() in togri_javob or togri_javob in text.lower():
                 status["score"] += 1
                 status["answers"][q_num] = f"✅ Savol {q_num}: To'g'ri (Siz: {text})"
@@ -143,6 +132,17 @@ def yuborish_savol(chat_id):
         yakunlash_test(chat_id)
         return
 
-    # Har 10 ta savoldan keyin to'xtash va tugma chiqarish
     if q_num > status["paket_limit"]:
-        st
+        status["paket_limit"] += 10
+        markup = types.InlineKeyboardMarkup()
+        markup.add(types.InlineKeyboardButton(text="➡️ Keyingi 10 ta savol", callback_data="next_packet"))
+        bot.send_message(chat_id, f"⏸ Dastlabki blok tugadi. Keyingi blok savollariga tayyor bo'lsangiz, quyidagi tugmani bosing:", reply_markup=markup)
+        return
+
+    savol_data = SAVOLLAR[q_num]
+
+    if savol_data["tur"] == "variant":
+        markup = types.InlineKeyboardMarkup(row_width=2)
+        buttons = [types.InlineKeyboardButton(text=v, callback_data=f"ans_{q_num}_{v}") for v in savol_data["variantlar"]]
+        markup.add(*buttons)
+        bot.send_message(chat_id, savol_data["savol"], reply_markup
