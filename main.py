@@ -9,15 +9,14 @@ from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, Tabl
 from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 
-# BOT VA ADMIN SOZLAMALARI
-BOT_TOKEN = "8851034305:AAFcnUivqVzXssLM3ZqKqoql1Ffy_Kef6kw"
-ADMIN_ID = 5541785551
-
+# BOT VA CONFIG
+# Render'dagi Environment Variable'dan olinadi
+BOT_TOKEN = os.environ.get("BOT_TOKEN")
 bot = telebot.TeleBot(BOT_TOKEN)
 app = Flask(__name__)
 
+ADMIN_ID = 5541785551
 USER_DATA = {}
-# Tokenlar bazasi
 ACTIVE_TOKENS = {
     "A7B9kL2pQ5xV1mR8", "w3N6zT9jH4fS7dK2", "m5Y2vC8xQ1nR9bL4", 
     "k9P4fJ7sD2hV5xN3", "r1X6tM3qL8pZ2vH9", "v4B8nK1sF7jP3mQ5", 
@@ -30,16 +29,11 @@ CORRECT_ANSWERS = {
     "11": "A", "12": "B", "13": "D", "14": "A", "15": "C", "16": "B", "17": "C", "18": "C", "19": "A", "20": "A",
     "21": "C", "23": "C", "24": "C", "25": "B", "27": "A", "28": "C", "29": "A", "30": "C", "31": "B", "32": "A",
     "33": "F", "34": "E", "35": "D",
-    "36": "a) 80 mu, b) 6 sotix",
-    "37": "a) Italiya fashistik partiyasi, b) Milan",
-    "38": "a) 19 ta, b) 10%",
-    "39": "a) 143-a'zosi, b) Si Szinpin",
-    "40": "a) Mihail Romanov va Nikolay II, b) Pyotr I",
-    "41": "a) Iosip Broz Tito",
-    "42": "a) Marg'ilon, b) Oila muhiti va akasi Oxunjon",
-    "43": "a) Mirkomilboy, b) Turkiya",
-    "44": "a) Jimmi Karter, b) Eron islom inqilobi",
-    "45": "a) Afrasiyob, b) Varaxsha va Paykend"
+    "36": "a) 80 mu, b) 6 sotix", "37": "a) Italiya fashistik partiyasi, b) Milan",
+    "38": "a) 19 ta, b) 10%", "39": "a) 143-a'zosi, b) Si Szinpin",
+    "40": "a) Mihail Romanov va Nikolay II, b) Pyotr I", "41": "a) Iosip Broz Tito",
+    "42": "a) Marg'ilon, b) Oila muhiti va akasi Oxunjon", "43": "a) Mirkomilboy, b) Turkiya",
+    "44": "a) Jimmi Karter, b) Eron islom inqilobi", "45": "a) Afrasiyob, b) Varaxsha va Paykend"
 }
 # ==========================================
 # 2. BOT VA FLASK LOGIKASI
@@ -92,12 +86,12 @@ def handle_text(message):
         user["time"] = datetime.now().strftime("%H:%M")
         user["step"] = "done"
         bot.send_message(chat_id, "Javoblaringiz qabul qilindi. Natijalar admin yakunlagandan keyin yuboriladi.")
-            # ==========================================
+# ==========================================
 # 3. NATIJALARNI HISOBLASH VA PDF GENERATOR
 # ==========================================
 def parse_user_answers(raw_text):
     parsed = {}
-    lines = raw_text.replace(",", "\n").split("\n")
+    lines = raw_text.replace(",", "\n").replace(";", "\n").split("\n")
     for line in lines:
         if "-" in line:
             parts = line.split("-", 1)
@@ -119,7 +113,10 @@ def process_results_and_send():
         if "answers" not in data: continue
         
         user_answers = parse_user_answers(data["answers"])
-        correct_count = sum(1 for q, ans in CORRECT_ANSWERS.items() if user_answers.get(q, "").lower() in ans.lower() or ans.lower() in user_answers.get(q, "").lower())
+        correct_count = 0
+        for q, ans in CORRECT_ANSWERS.items():
+            if q in user_answers and str(user_answers[q]).lower() in str(ans).lower():
+                correct_count += 1
         
         total = len(CORRECT_ANSWERS)
         foiz = round((correct_count / total) * 100, 2)
@@ -133,26 +130,24 @@ def process_results_and_send():
     
     results_list.sort(key=lambda x: x["ball"], reverse=True)
     create_pdf(results_list)
-    # ==========================================
+       # ==========================================
 # 4. PDF GENERATOR, YUBORISH VA START
 # ==========================================
 def create_pdf(results_list):
     pdf_filename = "Natijalar.pdf"
     doc = SimpleDocTemplate(pdf_filename, pagesize=letter)
-    styles = getSampleStyleSheet()
+    elements = [Paragraph("Tarix Sertifikat Test Natijalari", getSampleStyleSheet()['Heading1']), Spacer(1, 10)]
     
-    elements = [Paragraph("<b>Tarix Sertifikat Test Natijalari</b>", styles['Heading1']), Spacer(1, 10)]
-    
-    table_data = [["№", "Ism-familiya", "Ball", "Foiz", "To'g'ri", "Daraja", "Sana", "Vaqt"]]
+    table_data = [["№", "Ism", "Ball", "Foiz", "Daraja"]]
     for idx, res in enumerate(results_list, start=1):
-        table_data.append([str(idx), res["name"], str(res["ball"]), res["foiz"], str(res["score"]), res["daraja"], res["date"], res["time"]])
+        table_data.append([str(idx), res["name"], str(res["ball"]), res["foiz"], res["daraja"]])
     
-    t = Table(table_data, colWidths=[30, 150, 40, 50, 40, 40, 60, 50])
+    t = Table(table_data, colWidths=[30, 150, 40, 50, 50])
     elements.append(t)
     doc.build(elements)
     
     with open(pdf_filename, 'rb') as pdf:
-        bot.send_document(ADMIN_ID, pdf, caption="📊 Yakuniy natijalar jadvali.")
+        bot.send_document(ADMIN_ID, pdf, caption="📊 Yakuniy natijalar.")
         for res in results_list:
             pdf.seek(0)
             try:
@@ -167,5 +162,5 @@ def handle_yakunlash_start(message):
 
 if __name__ == "__main__":
     threading.Thread(target=run_flask, daemon=True).start()
-    print("Bot ishga tushdi...")
     bot.infinity_polling()
+    
