@@ -10,7 +10,7 @@ from reportlab.lib import colors
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 
 # BOT VA ADMIN SOZLAMALARI
-BOT_TOKEN = "7449551322:AAEq_mN6k9-V3L4YmZfX2-0q1XN4b8v6X9Y"
+BOT_TOKEN = "8851034305:AAFcnUivqVzXssLM3ZqKqoql1Ffy_Kef6kw"
 ADMIN_ID = 5541785551
 
 bot = telebot.TeleBot(BOT_TOKEN)
