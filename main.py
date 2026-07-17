@@ -56,7 +56,6 @@ SAVOLLAR = {
     28: {"tur": "variant", "savol": "28-savol: 1962-yilda AQSH va SSSR o'rtasidagi Yamayka yaqinidagi orolda joylashtirilgan yadro raketalari sababli kelib chiqqan va dunyoni uchinchi jahon urushi yoqasiga olib kenan xalqaro siyosiy inqiroz qanday ataladi?", "variantlar": ["Berlin inqirozi", "Karib inqirozi", "Suvaysh inqirozi", "Koreya urushi"], "javob": "Karib inqirozi"},
     29: {"tur": "variant", "savol": "29-savol: XIX asr oxiri va XX asr boshlarida Turkistonda vujudga kelgan, milliy uyg'onish, maktablarni isloh qilish, gazeta va teatr orqali xalqni ma'rifatli qilishni maqsad qilgan ijtimoiy-siyosiy harakat vakillari qanday nomlangan?", "variantlar": ["Jadidlar", "Qizilboshlilar", "Eshonlar", "Muxtoriyatchilar"], "javob": "Jadidlar"},
     30: {"tur": "variant", "savol": "30-savol: O'zbekiston Respublikasining mustaqillik yillarida qabul qilingan, ta'lim tizimini tubdan isloh qilish va kadrlar tayyorlashning milliy modelini yaratishga qaratilgan eng muhim dasturiy qonun hujjati qaysi?", "variantlar": ["Yoshlarga oid davlat siyosati to'g'risidagi Qonun", "Ta'lim to'g'risidaxi Qonun", "Ma'naviyat va ma'rifat konsepsiyasi", "Innovatsion faoliyat to'g'risidaxi Qonun"], "javob": "Ta'lim to'g'risidaxi Qonun"},
-
     # 4-BLOK (31-40)
     31: {"tur": "variant", "savol": "31-savol: Milodiy I-IV asrlarda Markaziy Osiyo, Afg'oniston va Shimoliy Hindiston hududlarini birlashtirgan, Kanishka I davrida o'z qudratining cho'qqisiga chiqib, buddizm dinini davlat miqyosida qo'llab-quvvatlagan imperiyani aniqlang.", "variantlar": ["Parfiya qirolligi", "Kushon imperiyasi", "Eftaliylar davlati", "Kangyu davlati"], "javob": "Kushon imperiyasi"},
     32: {"tur": "variant", "savol": "32-savol: Miloddan avvalgi 331-yilda Aleksandr Makedonskiy va Eronda Axamaniylar hukmdori Doro III o'rtasida bo'lib o'tgan, Eron qo'shinlarining mutqlo mag'lubiyati va Axamaniylar imperiyasining parchalanishiga olib kelgan hal qiluvchi jangni ko'rsating.", "variantlar": ["Granik jangi", "Iss jangi", "Gavgamela jangi", "Xeronoya jangi"], "javob": "Gavgamela jangi"},
@@ -145,8 +144,9 @@ def yuborish_savol(chat_id):
         markup = types.InlineKeyboardMarkup(row_width=2)
         buttons = [types.InlineKeyboardButton(text=v, callback_data=f"ans_{q_num}_{v}") for v in savol_data["variantlar"]]
         markup.add(*buttons)
-        bot.send_message(chat_id, savol_data["savol"], reply_markup)
-        elif savol_data["tur"] == "yozma":
+        bot.send_message(chat_id, savol_data["savol"], reply_markup=markup)
+        
+    elif savol_data["tur"] == "yozma":
         bot.send_message(chat_id, f"📝 {savol_data['savol']}\n\n⚠️ Diqqat! Javobni klaviaturada matn yoki ism shaklida yozib yuboring:")
 
 @bot.callback_query_handler(func=lambda call: True)
