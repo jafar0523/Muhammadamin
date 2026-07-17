@@ -145,4 +145,4 @@ def yuborish_savol(chat_id):
         markup = types.InlineKeyboardMarkup(row_width=2)
         buttons = [types.InlineKeyboardButton(text=v, callback_data=f"ans_{q_num}_{v}") for v in savol_data["variantlar"]]
         markup.add(*buttons)
-        bot.send_message(chat_id, savol_data["savol"], reply_markup=
+        bot.send_message(chat_id, savol_data["savol"]), reply_markup=
