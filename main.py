@@ -197,4 +197,4 @@ def process_message(message):
 
 if __name__ == "__main__":
   logging.info("Bot ishga tushdi...")
-  bot.infinity_polling(skip_pending_commits=True)
+bot.infinity_polling(skip_pending=True)
