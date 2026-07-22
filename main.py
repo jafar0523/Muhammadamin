@@ -1,7 +1,6 @@
 import io
 import json
 import logging
-import math
 import os
 import re
 
@@ -21,7 +20,7 @@ bot = TeleBot(BOT_TOKEN)
 ADMIN_ID = 5541785551
 DATA_FILE = "data.json"
 
-# To'g'ri javoblar shabloni (faqat kalitlar, qiyinliklar dinamik hisoblanadi)
+# To'g'ri javoblar shabloni
 CORRECT_ANSWERS = {
     1: "A",
     2: "A",
@@ -71,79 +70,14 @@ CORRECT_ANSWERS = {
 }
 
 
-def calculate_dynamic_rasch(submissions):
-  """Barcha qatnashchilarning natijalariga qarab qiyinlik va qobiliyatni
-
-  dinamik (avtomatik) hisoblaydi.
-  """
-  total_questions = len(CORRECT_ANSWERS)
-  total_users = len(submissions)
-
-  if total_users == 0:
-    return
-
-  # 1. Har bir savolga nechta odam to'g'ri javob berganini hisoblaymiz (p-value)
-  question_correct_counts = {q: 0 for q in CORRECT_ANSWERS}
-
-  for sub in submissions.values():
-    u_ans = sub.get("answers", {})
-    for q_num, correct_ans in CORRECT_ANSWERS.items():
-      if u_ans.get(q_num) == str(correct_ans).upper():
-        question_correct_counts[q_num] += 1
-
-  # 2. Har bir savol uchun Rasch qiyinlik koeffitsiyenti (difficulty - b)
-  # Qancha kam odam topshirsa, savol shuncha qiyin bo'ladi (-3.0 dan +3.0 gacha)
-  question_difficulties = {}
-  for q_num, count in question_correct_counts.items():
-    if count == 0:
-      diff = 3.0  # Hech kim topolmaganta eng qiyin
-    elif count == total_users:
-      diff = -3.0  # Hammabop oson savol
-    else:
-      p = count / total_users
-      # logit formula bo'yicha qiyinlik
-      diff = -math.log(p / (1.0 - p))
-    question_difficulties[q_num] = diff
-
-  # 3. Har bir qatnashchi uchun theta va ballni qayta hisoblaymiz
-  for u_id, sub in submissions.items():
-    u_ans = sub.get("answers", {})
-    correct_count = 0
-    sum_diff_correct = 0
-
-    for q_num, correct_ans in CORRECT_ANSWERS.items():
-      if u_ans.get(q_num) == str(correct_ans).upper():
-        correct_count += 1
-        sum_diff_correct += question_difficulties.get(q_num, 0)
-
-    # Qatnashchining qobiliyat logiti (theta)
-    if correct_count == 0:
-      ability_theta = -3.5
-    elif correct_count == total_questions:
-      ability_theta = 4.5
-    else:
-      mean_diff = sum_diff_correct / correct_count
-      ability_theta = math.log(correct_count / (total_questions - correct_count)) + (
-          mean_diff * 0.2
-      )
-
-    # 0 - 100 gacha shkala balli
-    rasch_score = min(100, max(0, round(50 + (ability_theta * 10), 1)))
-
-    # Natijani yangilaymiz
-    sub["score"] = f"{correct_count}/{total_questions}"
-    sub["rasch_theta"] = round(ability_theta, 2)
-    sub["rasch_score"] = rasch_score
-
-
 def get_grade(score):
-  if score >= 85:
+  if score >= 40:
     return "A+"
-  elif score >= 70:
+  elif score >= 32:
     return "A"
-  elif score >= 55:
+  elif score >= 25:
     return "B+"
-  elif score >= 40:
+  elif score >= 18:
     return "B"
   else:
     return "C"
@@ -195,6 +129,7 @@ def save_data(data):
 
 def parse_user_answers(text):
   answers = {}
+  # Har qanday formatdagi (1-A, 1.A, 1:A, 1 A) javoblarni aniq o'qish uchun regex
   matches = re.findall(
       r"(\d+)[\s\-\:\.\=]+([A-Za-zА-Яа-яO‘o‘O’o’G‘g‘ʻʼ’`]+)", text
   )
@@ -204,9 +139,6 @@ def parse_user_answers(text):
 
 
 def generate_pdf_report(submissions):
-  # Admin /stop qilganda oxirgi bazaga qarab barcha natijalarni dinamik hisoblab chiqamiz
-  calculate_dynamic_rasch(submissions)
-
   buffer = io.BytesIO()
   doc = SimpleDocTemplate(
       buffer,
@@ -223,46 +155,28 @@ def generate_pdf_report(submissions):
   title_style.alignment = 1
   title_style.fontSize = 16
 
-  elements.append(
-      Paragraph(
-          "<b>TEST NATIJALARI (DINAMIK RASCH MODELI TAHLILI)</b>", title_style
-      )
-  )
+  elements.append(Paragraph("<b>TEST NATIJALARI (BALL TIZIMI)</b>", title_style))
   elements.append(Spacer(1, 15))
 
   sorted_subs = sorted(
       submissions.values(),
-      key=lambda x: (
-          float(x.get("rasch_score", 0)),
-          float(x.get("rasch_theta", 0)),
-      ),
+      key=lambda x: int(x.get("correct_count", 0)),
       reverse=True,
   )
 
-  table_data = [[
-      "№",
-      "Ism Familiya",
-      "Ball",
-      "Foiz",
-      "To'g'ri",
-      "Ability (θ)",
-      "Daraja",
-  ]]
+  table_data = [["№", "Ism Familiya", "To'g'ri javob", "Foiz", "Daraja"]]
 
   for idx, sub in enumerate(sorted_subs, start=1):
     name = sub.get("full_name", "Noma'lum")
-    score_val = float(sub.get("rasch_score", 0))
-    score_str = str(score_val)
-    percentage = f"{score_val:.1f}%"
-    correct_cnt = sub.get("score", "0/45")
-    theta = str(sub.get("rasch_theta", "0.0"))
-    grade = get_grade(score_val)
+    correct_cnt = int(sub.get("correct_count", 0))
+    total_q = len(CORRECT_ANSWERS)
+    percentage = f"{(correct_cnt / total_q) * 100:.1f}%"
+    score_str = f"{correct_cnt} / {total_q}"
+    grade = get_grade(correct_cnt)
 
-    table_data.append(
-        [str(idx), name, score_str, percentage, correct_cnt, theta, grade]
-    )
+    table_data.append([str(idx), name, score_str, percentage, grade])
 
-  table = Table(table_data, colWidths=[30, 240, 70, 70, 70, 90, 70])
+  table = Table(table_data, colWidths=[40, 300, 100, 100, 100])
   table.setStyle(
       TableStyle([
           ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1A365D")),
@@ -305,7 +219,7 @@ def admin_handler(message):
   text += f"Ishlatilgan tokenlar: {used_tokens_count}\n"
   text += f"Test topshirganlar: {len(submissions)}\n\n"
   text += "Boshqaruv:\n"
-  text += "• `/stop` - Testni to'xtatish va yakuniy dinamik PDF hisobotni olish\n"
+  text += "• `/stop` - Testni to'xtatish va yakuniy PDF hisobotni olish\n"
   text += "• `/pdf` - Natijalar PDF hisobotini qo'lda olish\n"
   text += "• `/start_test` - Testni qayta yoqish\n"
 
@@ -324,15 +238,13 @@ def send_pdf_handler(message):
     bot.reply_to(message, "⚠️ Hozircha hech qanday natija yo'q.")
     return
 
-  bot.send_message(
-      message.chat.id, "📄 Dinamik Rasch modeli PDF hisoboti tayyorlanmoqda..."
-  )
+  bot.send_message(message.chat.id, "📄 PDF hisoboti tayyorlanmoqda...")
   pdf_buffer = generate_pdf_report(submissions)
 
   bot.send_document(
       message.chat.id,
-      document=("rasch_dinamik_natijalar.pdf", pdf_buffer, "application/pdf"),
-      caption="📊 **Dinamik Rasch Modeli Bo'yicha Test Natijalari**",
+      document=("test_natijalari.pdf", pdf_buffer, "application/pdf"),
+      caption="📊 **Test Natijalari Hisoboti**",
   )
 
 
@@ -347,8 +259,7 @@ def stop_test_handler(message):
 
   bot.reply_to(
       message,
-      "🔴 **Test qabul qilish to'xtatildi!**\nBarcha qatnashchilar"
-      " natijalari asosida dinamik tahlil qilinib, PDF hisobot"
+      "🔴 **Test qabul qilish to'xtatildi!**\nNatijalar hisoboti"
       " tayyorlanmoqda...",
   )
 
@@ -357,10 +268,10 @@ def stop_test_handler(message):
     pdf_buffer = generate_pdf_report(submissions)
     bot.send_document(
         message.chat.id,
-        document=("rasch_dinamik_natijalar.pdf", pdf_buffer, "application/pdf"),
+        document=("test_natijalari.pdf", pdf_buffer, "application/pdf"),
         caption=(
-            "📊 **Test yakunlandi!** Qatnashchilar natijalariga moslashtirilgan"
-            " to'liq dinamik Rasch PDF hisoboti."
+            "📊 **Test yakunlandi!** Barcha qatnashchilar natijalari to'liq"
+            " PDF hisoboti."
         ),
     )
   else:
@@ -429,7 +340,7 @@ def process_message(message):
 
   if "activated_token" not in user_data:
     tokens = data.get("tokens", {})
-    clean_input = user_input.replace(" ", "").strip().lower()
+    clean_input = user_input.strip().lower()
 
     matched_token_key = None
     for token_key in tokens.keys():
@@ -467,6 +378,7 @@ def process_message(message):
       )
     return
 
+  # Javoblarni o'qish
   user_answers = parse_user_answers(user_input)
 
   if not user_answers:
@@ -478,19 +390,19 @@ def process_message(message):
     )
     return
 
-  # Foydalanuvchining shunchaki to'g'ri javoblar sonini saqlab qo'yamiz
+  # To'g'ri javoblarni solishtirish
   correct_count = 0
   total_questions = len(CORRECT_ANSWERS)
+
   for q_num, correct_ans in CORRECT_ANSWERS.items():
-    if user_answers.get(q_num) == str(correct_ans).upper():
+    user_ans = user_answers.get(q_num)
+    if user_ans and user_ans == str(correct_ans).upper():
       correct_count += 1
 
   data["user_submissions"][user_id] = {
       "full_name": user_data.get("full_name"),
-      "score": f"{correct_count}/{total_questions}",
+      "correct_count": correct_count,
       "answers": user_answers,
-      "rasch_theta": 0.0,
-      "rasch_score": 0.0,
   }
   save_data(data)
 
@@ -498,8 +410,7 @@ def process_message(message):
       message,
       f"📊 **{user_data.get('full_name')}**, javoblaringiz qabul qilindi!\n\n"
       f"• To'g'ri topilganlar: **{correct_count} / {total_questions}**\n\n"
-      "Test yakunlangach admin tomonidan to'liq Rasch modeli bo'yicha tahliliy"
-      " natijalar e'lon qilinadi.",
+      "Test yakunlangach admin tomonidan to'liq natijalar e'lon qilinadi.",
       parse_mode="Markdown",
   )
 
