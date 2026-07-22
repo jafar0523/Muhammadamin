@@ -1,166 +1,200 @@
+import json
+import logging
 import os
-import threading
-from datetime import datetime
-from flask import Flask
-import telebot
-from telebot import types
-from reportlab.lib.pagesizes import letter
-from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, Table, TableStyle
-from reportlab.lib import colors
-from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+import re
+from telebot import TeleBot
 
-# BOT VA CONFIG
-# Render'dagi Environment Variable'dan olinadi
-BOT_TOKEN = os.environ.get("BOT_TOKEN")
-bot = telebot.TeleBot(BOT_TOKEN)
-app = Flask(__name__)
+# Loggingni sozlash (xatoliklarni konsolda ko'rib borish uchun)
+logging.basicConfig(
+    level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
+)
 
-ADMIN_ID = 5541785551
-USER_DATA = {}
-ACTIVE_TOKENS = {
-    "A7B9kL2pQ5xV1mR8", "w3N6zT9jH4fS7dK2", "m5Y2vC8xQ1nR9bL4", 
-    "k9P4fJ7sD2hV5xN3", "r1X6tM3qL8pZ2vH9", "v4B8nK1sF7jP3mQ5", 
-    "z2D7hG4rX9tL6bN8", "q5J3mV1pN8kS2fH7", "c9N2lD6xR4vP7kQ1", "b4H7fQ9jT2sL5nM3"
-}
-EXAM_ACTIVE = True
+# Telegram Bot Tokeningizni olish
+BOT_TOKEN = os.getenv("BOT_TOKEN", "YOUR_TELEGRAM_BOT_TOKEN_HERE")
+bot = TeleBot(BOT_TOKEN)
 
+DATA_FILE = "data.json"
+
+# --- TAYYOR JAVOBLAR KALITI ---
 CORRECT_ANSWERS = {
-    "1": "D", "2": "A", "3": "A", "4": "A", "5": "B", "7": "D", "8": "B", "9": "D", "10": "B",
-    "11": "A", "12": "B", "13": "D", "14": "A", "15": "C", "16": "B", "17": "C", "18": "C", "19": "A", "20": "A",
-    "21": "C", "23": "C", "24": "C", "25": "B", "27": "A", "28": "C", "29": "A", "30": "C", "31": "B", "32": "A",
-    "33": "F", "34": "E", "35": "D",
-    "36": "a) 80 mu, b) 6 sotix", "37": "a) Italiya fashistik partiyasi, b) Milan",
-    "38": "a) 19 ta, b) 10%", "39": "a) 143-a'zosi, b) Si Szinpin",
-    "40": "a) Mihail Romanov va Nikolay II, b) Pyotr I", "41": "a) Iosip Broz Tito",
-    "42": "a) Marg'ilon, b) Oila muhiti va akasi Oxunjon", "43": "a) Mirkomilboy, b) Turkiya",
-    "44": "a) Jimmi Karter, b) Eron islom inqilobi", "45": "a) Afrasiyob, b) Varaxsha va Paykend"
+    1: "A",
+    2: "A",
+    3: "A",
+    4: "A",
+    5: "A",
+    6: "A",
+    7: "A",
+    8: "A",
+    9: "A",
+    10: "A",
+    11: "B",
+    12: "B",
+    13: "B",
+    14: "B",
+    15: "B",
+    16: "B",
+    17: "B",
+    18: "B",
+    19: "B",
+    20: "C",
+    21: "C",
+    22: "C",
+    23: "C",
+    24: "C",
+    25: "C",
+    26: "C",
+    27: "C",
+    28: "D",
+    29: "D",
+    30: "D",
+    31: "D",
+    32: "D",
+    33: "D",
+    34: "D",
+    35: "D",
+    36: "GERMANIYA",
+    37: "ITALIYA",
+    38: "ARMADA",
+    39: "ABDULAZIZ",
+    40: "MUHAMMADAMIN",
+    41: "JAVOHIR",
+    42: "OTABEK",
+    43: "SHOMURODOV",
+    44: "KALBOSH",
+    45: "KABRAL",
 }
-# ==========================================
-# 2. BOT VA FLASK LOGIKASI
-# ==========================================
-@app.route('/')
-def home():
-    return "Bot status: Running!"
 
-def run_flask():
-    app.run(host="0.0.0.0", port=10000)
 
-@bot.message_handler(commands=['start'])
-def send_welcome(message):
-    chat_id = message.chat.id
-    if chat_id == ADMIN_ID:
-        bot.send_message(chat_id, "Admin, testni yakunlash uchun /yakunlash yuboring.")
-        return
-    USER_DATA[chat_id] = {"step": "name", "name": None, "answers": None}
-    bot.send_message(chat_id, "Ism va familiyangizni kiriting:")
+def load_data():
+  """JSON fayldan ma'lumotlarni xavfsiz o'qish."""
+  if not os.path.exists(DATA_FILE):
+    return {"tokens": {}, "users": {}, "user_submissions": {}}
+
+  try:
+    with open(DATA_FILE, "r", encoding="utf-8") as f:
+      return json.load(f)
+  except Exception as e:
+    logging.error(f"Faylni o'qishda xatolik: {e}")
+    return {"tokens": {}, "users": {}, "user_submissions": {}}
+
+
+def save_data(data):
+  """Ma'lumotlarni JSON faylga saqlash."""
+  try:
+    with open(DATA_FILE, "w", encoding="utf-8") as f:
+      json.dump(data, f, indent=2, ensure_ascii=False)
+  except Exception as e:
+    logging.error(f"Faylga saqlashda xatolik: {e}")
+
+
+def parse_user_answers(text):
+  """Foydalanuvchi matnidan savol raqami va javoblarni ajratib olish."""
+  answers = {}
+  # Ko'p uchraydigan belgilarni (dash, colon, space va h.k.) inobatga oluvchi regex pattern
+  matches = re.findall(
+      r"(\d+)[\s\-\:\.\=]+([A-Za-zА-Яа-яO‘o‘O’o’G‘g‘ʻʼ’`]+)", text
+  )
+  for q_num, ans in matches:
+    answers[int(q_num)] = ans.strip().upper()
+  return answers
+
+
+@bot.message_handler(commands=["start"])
+def start_handler(message):
+  welcome_text = (
+      f"Assalomu alaykum, **{message.from_user.first_name}**!\n\n"
+      "Tizimdan foydalanish uchun o'zingizning **maxsus tokeningizni** yuboring:"
+  )
+  bot.send_message(message.chat.id, welcome_text, parse_mode="Markdown")
+
 
 @bot.message_handler(func=lambda message: True)
-def handle_text(message):
-    chat_id = message.chat.id
-    text = message.text.strip()
+def process_message(message):
+  user_input = message.text.strip()
+  user_id = str(message.from_user.id)
+  data = load_data()
 
-    if chat_id == ADMIN_ID and text == "/yakunlash":
-        handle_yakunlash_start(message)
-        return
-    
-    if chat_id not in USER_DATA: return
-    
-    user = USER_DATA[chat_id]
-    
-    if user["step"] == "name":
-        user["name"] = text
-        user["step"] = "token"
-        bot.send_message(chat_id, "Tokeningizni kiriting:")
-        
-    elif user["step"] == "token":
-        if text in ACTIVE_TOKENS:
-            ACTIVE_TOKENS.remove(text)
-            user["step"] = "answers"
-            bot.send_message(chat_id, "Token to'g'ri! Endi javoblaringizni yuboring (masalan: 1-A, 2-B...):")
-        else:
-            bot.send_message(chat_id, "Noto'g'ri yoki ishlatilgan token! Qaytadan urinib ko'ring.")
-            
-    elif user["step"] == "answers":
-        user["answers"] = text
-        user["date"] = datetime.now().strftime("%d.%m.%y")
-        user["time"] = datetime.now().strftime("%H:%M")
-        user["step"] = "done"
-        bot.send_message(chat_id, "Javoblaringiz qabul qilindi. Natijalar admin yakunlagandan keyin yuboriladi.")
-# ==========================================
-# 3. NATIJALARNI HISOBLASH VA PDF GENERATOR
-# ==========================================
-def parse_user_answers(raw_text):
-    parsed = {}
-    lines = raw_text.replace(",", "\n").replace(";", "\n").split("\n")
-    for line in lines:
-        if "-" in line:
-            parts = line.split("-", 1)
-            q_num = parts[0].strip()
-            q_ans = parts[1].strip().upper()
-            parsed[q_num] = q_ans
-    return parsed
+  if "users" not in data:
+    data["users"] = {}
+  if "tokens" not in data:
+    data["tokens"] = {}
+  if "user_submissions" not in data:
+    data["user_submissions"] = {}
 
-def get_daraja(percentage):
-    if percentage >= 86: return "A+"
-    elif percentage >= 70: return "A"
-    elif percentage >= 60: return "B+"
-    elif percentage >= 50: return "B"
-    else: return "C"
+  # 1. Agar foydalanuvchi hali token faollashtirmagan bo'lsa
+  if user_id not in data["users"]:
+    tokens = data["tokens"]
 
-def process_results_and_send():
-    results_list = []
-    for chat_id, data in USER_DATA.items():
-        if "answers" not in data: continue
-        
-        user_answers = parse_user_answers(data["answers"])
-        correct_count = 0
-        for q, ans in CORRECT_ANSWERS.items():
-            if q in user_answers and str(user_answers[q]).lower() in str(ans).lower():
-                correct_count += 1
-        
-        total = len(CORRECT_ANSWERS)
-        foiz = round((correct_count / total) * 100, 2)
-        ball = round(foiz * 0.86, 2)
-        
-        results_list.append({
-            "chat_id": chat_id, "name": data["name"], "score": correct_count,
-            "ball": ball, "foiz": f"{foiz}%", "daraja": get_daraja(foiz),
-            "date": data["date"], "time": data["time"]
-        })
-    
-    results_list.sort(key=lambda x: x["ball"], reverse=True)
-    create_pdf(results_list)
-       # ==========================================
-# 4. PDF GENERATOR, YUBORISH VA START
-# ==========================================
-def create_pdf(results_list):
-    pdf_filename = "Natijalar.pdf"
-    doc = SimpleDocTemplate(pdf_filename, pagesize=letter)
-    elements = [Paragraph("Tarix Sertifikat Test Natijalari", getSampleStyleSheet()['Heading1']), Spacer(1, 10)]
-    
-    table_data = [["№", "Ism", "Ball", "Foiz", "Daraja"]]
-    for idx, res in enumerate(results_list, start=1):
-        table_data.append([str(idx), res["name"], str(res["ball"]), res["foiz"], res["daraja"]])
-    
-    t = Table(table_data, colWidths=[30, 150, 40, 50, 50])
-    elements.append(t)
-    doc.build(elements)
-    
-    with open(pdf_filename, 'rb') as pdf:
-        bot.send_document(ADMIN_ID, pdf, caption="📊 Yakuniy natijalar.")
-        for res in results_list:
-            pdf.seek(0)
-            try:
-                bot.send_document(res["chat_id"], pdf, caption=f"📢 Natijangiz: {res['ball']} ball.")
-            except: pass
-    if os.path.exists(pdf_filename): os.remove(pdf_filename)
+    if user_input in tokens:
+      if not tokens[user_input].get("used", False):
+        # Tokenni faollashtirish
+        tokens[user_input]["used"] = True
+        tokens[user_input]["used_by"] = message.from_user.id
 
-def handle_yakunlash_start(message):
-    global EXAM_ACTIVE
-    EXAM_ACTIVE = False
-    process_results_and_send()
+        data["users"][user_id] = {
+            "first_name": message.from_user.first_name,
+            "username": message.from_user.username,
+            "activated_token": user_input,
+        }
+        save_data(data)
+
+        bot.reply_to(
+            message,
+            "✅ **Token muvaffaqiyatli faollashtirildi!**\n\n"
+            "Endi test javoblaringizni quyidagi formatda yuborishingiz mumkin:\n"
+            "`1-A 2-B ... 36-GERMANIYA ... 45-KABRAL`",
+            parse_mode="Markdown",
+        )
+      else:
+        bot.reply_to(
+            message,
+            "❌ **Bu token allaqachon boshqa foydalanuvchi tomonidan ishlatilgan!**",
+        )
+    else:
+      bot.reply_to(
+          message,
+          "❌ **Noto'g'ri token kiritildi.**\n"
+          "Iltimos, sizga berilgan to'g'ri tokeningizni kiriting.",
+      )
+    return
+
+  # 2. Token faollashtirilgan bo'lsa — Test javoblarini tekshirish
+  user_answers = parse_user_answers(user_input)
+
+  if not user_answers:
+    bot.reply_to(
+        message,
+        "⚠️ **Javoblar formati aniqlanmadi.**\n\n"
+        "Javoblarni quyidagicha formatda yuboring:\n"
+        "`1-A 2-B 3-C ... 36-GERMANIYA`",
+        parse_mode="Markdown",
+    )
+    return
+
+  correct_count = 0
+  total_questions = len(CORRECT_ANSWERS)
+
+  for q_num, correct_ans in CORRECT_ANSWERS.items():
+    user_ans = user_answers.get(q_num, "")
+    if user_ans == correct_ans.upper():
+      correct_count += 1
+
+  # Natijani saqlash
+  data["user_submissions"][user_id] = {
+      "score": f"{correct_count}/{total_questions}",
+      "answers": user_answers,
+  }
+  save_data(data)
+
+  # Foydalanuvchiga natijani yuborish
+  bot.reply_to(
+      message,
+      f"📊 **Sizning natijangiz:** {correct_count} / {total_questions}\n\n"
+      "Javoblaringiz qabul qilindi!",
+      parse_mode="Markdown",
+  )
+
 
 if __name__ == "__main__":
-    threading.Thread(target=run_flask, daemon=True).start()
-    bot.infinity_polling()
-    
+  logging.info("Bot ishga tushdi...")
+  bot.infinity_polling(skip_pending_commits=True)
