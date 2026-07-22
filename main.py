@@ -4,12 +4,16 @@ import os
 import re
 from telebot import TeleBot
 
+# Loggingni sozlash
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
 BOT_TOKEN = os.getenv("BOT_TOKEN", "YOUR_TELEGRAM_BOT_TOKEN_HERE")
 bot = TeleBot(BOT_TOKEN)
+
+# ADMIN TELEGRAM ID
+ADMIN_ID = 5541785551
 
 DATA_FILE = "data.json"
 
@@ -63,6 +67,7 @@ CORRECT_ANSWERS = {
 
 
 def load_data():
+  """JSON fayldan ma'lumotlarni o'qish."""
   if not os.path.exists(DATA_FILE):
     return {"tokens": {}, "users": {}, "user_submissions": {}}
   try:
@@ -74,6 +79,7 @@ def load_data():
 
 
 def save_data(data):
+  """JSON faylga saqlash."""
   try:
     with open(DATA_FILE, "w", encoding="utf-8") as f:
       json.dump(data, f, indent=2, ensure_ascii=False)
@@ -82,6 +88,7 @@ def save_data(data):
 
 
 def parse_user_answers(text):
+  """Javoblarni ajratish."""
   answers = {}
   matches = re.findall(
       r"(\d+)[\s\-\:\.\=]+([A-Za-zА-Яа-яO‘o‘O’o’G‘g‘ʻʼ’`]+)", text
@@ -91,6 +98,37 @@ def parse_user_answers(text):
   return answers
 
 
+# --- ADMIN PANEL BUYRUG'I ---
+@bot.message_handler(commands=["admin"])
+def admin_handler(message):
+  if message.from_user.id != ADMIN_ID:
+    bot.reply_to(message, "❌ Siz bot admini emassiz!")
+    return
+
+  data = load_data()
+  submissions = data.get("user_submissions", {})
+  tokens = data.get("tokens", {})
+
+  used_tokens_count = sum(1 for t in tokens.values() if t.get("used", False))
+
+  text = "⚙️ **ADMIN PANEL**\n\n"
+  text += f"Jami tokenlar: {len(tokens)}\n"
+  text += f"Ishlatilgan tokenlar: {used_tokens_count}\n"
+  text += f"Test topshirganlar: {len(submissions)}\n\n"
+  text += "📋 **Natijalar:**\n"
+
+  if not submissions:
+    text += "Hozircha hech kim test topshirmadi."
+  else:
+    for u_id, sub in submissions.items():
+      name = sub.get("full_name", "Noma'lum")
+      score = sub.get("score", "0")
+      text += f"• **{name}**: {score}\n"
+
+  bot.send_message(message.chat.id, text, parse_mode="Markdown")
+
+
+# --- START BUYRUG'I ---
 @bot.message_handler(commands=["start"])
 def start_handler(message):
   welcome_text = (
@@ -100,6 +138,7 @@ def start_handler(message):
   bot.send_message(message.chat.id, welcome_text, parse_mode="Markdown")
 
 
+# --- XABARLARNI QAYTA ISHLASH ---
 @bot.message_handler(func=lambda message: True)
 def process_message(message):
   user_input = message.text.strip()
@@ -115,7 +154,7 @@ def process_message(message):
 
   user_data = data["users"].get(user_id, {})
 
-  # 1-BOSQICH: Ism va Familiyani saqlash
+  # 1-BOSQICH: Ism va Familiya
   if "full_name" not in user_data:
     data["users"][user_id] = {
         "telegram_name": message.from_user.first_name,
@@ -132,22 +171,21 @@ def process_message(message):
     )
     return
 
-  # 2-BOSQICH: Tokenni tekshirish (Katta-kichik harf va bo'shliqlarga bog'liq bo'lmagan qidiruv)
+  # 2-BOSQICH: Tokenni tekshirish
   if "activated_token" not in user_data:
     tokens = data.get("tokens", {})
-
-    # Kiritilgan tokenni to'g'rilash (bo'shliqlarsiz)
-    clean_input = user_input.replace(" ", "").strip()
+    clean_input = user_input.replace(" ", "").strip().lower()
 
     matched_token_key = None
     for token_key in tokens.keys():
-      if token_key.strip().lower() == clean_input.lower():
+      if token_key.strip().lower() == clean_input:
         matched_token_key = token_key
         break
 
     if matched_token_key:
-      if not tokens[matched_token_key].get("used", False):
-        # Tokenni faollashtirish
+      token_info = tokens[matched_token_key]
+
+      if not token_info.get("used", False):
         tokens[matched_token_key]["used"] = True
         tokens[matched_token_key]["used_by"] = message.from_user.id
 
@@ -174,7 +212,7 @@ def process_message(message):
       )
     return
 
-  # 3-BOSQICH: Test javoblarini tekshirish
+  # 3-BOSQICH: Javoblarni hisoblash
   user_answers = parse_user_answers(user_input)
 
   if not user_answers:
