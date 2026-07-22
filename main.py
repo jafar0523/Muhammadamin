@@ -96,9 +96,12 @@ def calculate_rasch_score(user_answers):
 
 
 def load_data():
-  if not os.path.exists(DATA_FILE):
+  if not os.path.exists(DATA_FILE) or os.path.getsize(DATA_FILE) == 0:
     return {
-        "tokens": {},
+        "tokens": {
+            "f9N3fj5wQ1mH7dN6": {"used": False},
+            "token123": {"used": False},
+        },
         "users": {},
         "user_submissions": {},
         "is_active": True,
@@ -106,6 +109,12 @@ def load_data():
   try:
     with open(DATA_FILE, "r", encoding="utf-8") as f:
       data = json.load(f)
+      if "tokens" not in data or not isinstance(data["tokens"], dict):
+        data["tokens"] = {}
+      if "users" not in data:
+        data["users"] = {}
+      if "user_submissions" not in data:
+        data["user_submissions"] = {}
       if "is_active" not in data:
         data["is_active"] = True
       return data
@@ -387,4 +396,8 @@ def process_message(message):
 
 if __name__ == "__main__":
   logging.info("Bot ishga tushdi...")
+  try:
+    bot.remove_webhook()
+  except Exception:
+    pass
   bot.infinity_polling(skip_pending=True)
