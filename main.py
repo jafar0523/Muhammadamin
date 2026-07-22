@@ -4,7 +4,6 @@ import os
 import re
 from telebot import TeleBot
 
-# Loggingni sozlash
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
@@ -14,7 +13,6 @@ bot = TeleBot(BOT_TOKEN)
 
 DATA_FILE = "data.json"
 
-# Javoblar kaliti
 CORRECT_ANSWERS = {
     1: "A",
     2: "A",
@@ -65,7 +63,6 @@ CORRECT_ANSWERS = {
 
 
 def load_data():
-  """JSON fayldan ma'lumotlarni xavfsiz o'qish."""
   if not os.path.exists(DATA_FILE):
     return {"tokens": {}, "users": {}, "user_submissions": {}}
   try:
@@ -77,7 +74,6 @@ def load_data():
 
 
 def save_data(data):
-  """Ma'lumotlarni JSON faylga saqlash."""
   try:
     with open(DATA_FILE, "w", encoding="utf-8") as f:
       json.dump(data, f, indent=2, ensure_ascii=False)
@@ -86,7 +82,6 @@ def save_data(data):
 
 
 def parse_user_answers(text):
-  """Foydalanuvchi javoblarini ajratib olish (1-A 2-B ... 36-GERMANIYA formatida)."""
   answers = {}
   matches = re.findall(
       r"(\d+)[\s\-\:\.\=]+([A-Za-zА-Яа-яO‘o‘O’o’G‘g‘ʻʼ’`]+)", text
@@ -120,7 +115,7 @@ def process_message(message):
 
   user_data = data["users"].get(user_id, {})
 
-  # 1-BOSQICH: Ism va Familiyani qabul qilish
+  # 1-BOSQICH: Ism va Familiyani saqlash
   if "full_name" not in user_data:
     data["users"][user_id] = {
         "telegram_name": message.from_user.first_name,
@@ -137,16 +132,26 @@ def process_message(message):
     )
     return
 
-  # 2-BOSQICH: Tokenni tekshirish
+  # 2-BOSQICH: Tokenni tekshirish (Katta-kichik harf va bo'shliqlarga bog'liq bo'lmagan qidiruv)
   if "activated_token" not in user_data:
-    tokens = data["tokens"]
+    tokens = data.get("tokens", {})
 
-    if user_input in tokens:
-      if not tokens[user_input].get("used", False):
-        tokens[user_input]["used"] = True
-        tokens[user_input]["used_by"] = message.from_user.id
+    # Kiritilgan tokenni to'g'rilash (bo'shliqlarsiz)
+    clean_input = user_input.replace(" ", "").strip()
 
-        data["users"][user_id]["activated_token"] = user_input
+    matched_token_key = None
+    for token_key in tokens.keys():
+      if token_key.strip().lower() == clean_input.lower():
+        matched_token_key = token_key
+        break
+
+    if matched_token_key:
+      if not tokens[matched_token_key].get("used", False):
+        # Tokenni faollashtirish
+        tokens[matched_token_key]["used"] = True
+        tokens[matched_token_key]["used_by"] = message.from_user.id
+
+        data["users"][user_id]["activated_token"] = matched_token_key
         save_data(data)
 
         bot.reply_to(
@@ -164,11 +169,12 @@ def process_message(message):
     else:
       bot.reply_to(
           message,
-          "❌ **Noto'g'ri token kiritildi.** Iltimos, to'g'ri token yuboring.",
+          "❌ **Noto'g'ri token kiritildi.**\n"
+          "Iltimos, sizga berilgan to'g'ri tokeningizni kiriting.",
       )
     return
 
-  # 3-BOSQICH: Test javoblarini hisoblash
+  # 3-BOSQICH: Test javoblarini tekshirish
   user_answers = parse_user_answers(user_input)
 
   if not user_answers:
@@ -207,4 +213,3 @@ def process_message(message):
 if __name__ == "__main__":
   logging.info("Bot ishga tushdi...")
   bot.infinity_polling(skip_pending=True)
-    
