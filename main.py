@@ -4,18 +4,17 @@ import os
 import re
 from telebot import TeleBot
 
-# Loggingni sozlash (xatoliklarni konsolda ko'rib borish uchun)
+# Loggingni sozlash
 logging.basicConfig(
     level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s"
 )
 
-# Telegram Bot Tokeningizni olish
 BOT_TOKEN = os.getenv("BOT_TOKEN", "YOUR_TELEGRAM_BOT_TOKEN_HERE")
 bot = TeleBot(BOT_TOKEN)
 
 DATA_FILE = "data.json"
 
-# --- TAYYOR JAVOBLAR KALITI ---
+# Javoblar kaliti
 CORRECT_ANSWERS = {
     1: "A",
     2: "A",
@@ -69,7 +68,6 @@ def load_data():
   """JSON fayldan ma'lumotlarni xavfsiz o'qish."""
   if not os.path.exists(DATA_FILE):
     return {"tokens": {}, "users": {}, "user_submissions": {}}
-
   try:
     with open(DATA_FILE, "r", encoding="utf-8") as f:
       return json.load(f)
@@ -88,9 +86,8 @@ def save_data(data):
 
 
 def parse_user_answers(text):
-  """Foydalanuvchi matnidan savol raqami va javoblarni ajratib olish."""
+  """Foydalanuvchi javoblarini ajratib olish (1-A 2-B ... 36-GERMANIYA formatida)."""
   answers = {}
-  # Ko'p uchraydigan belgilarni (dash, colon, space va h.k.) inobatga oluvchi regex pattern
   matches = re.findall(
       r"(\d+)[\s\-\:\.\=]+([A-Za-zА-Яа-яO‘o‘O’o’G‘g‘ʻʼ’`]+)", text
   )
@@ -103,7 +100,7 @@ def parse_user_answers(text):
 def start_handler(message):
   welcome_text = (
       f"Assalomu alaykum, **{message.from_user.first_name}**!\n\n"
-      "Tizimdan foydalanish uchun o'zingizning **maxsus tokeningizni** yuboring:"
+      "Tizimdan foydalanish uchun, iltimos, to'liq **Ismingiz va Familiyangizni** kiriting (masalan: *Ali Valiyev*):"
   )
   bot.send_message(message.chat.id, welcome_text, parse_mode="Markdown")
 
@@ -121,21 +118,35 @@ def process_message(message):
   if "user_submissions" not in data:
     data["user_submissions"] = {}
 
-  # 1. Agar foydalanuvchi hali token faollashtirmagan bo'lsa
-  if user_id not in data["users"]:
+  user_data = data["users"].get(user_id, {})
+
+  # 1-BOSQICH: Ism va Familiyani qabul qilish
+  if "full_name" not in user_data:
+    data["users"][user_id] = {
+        "telegram_name": message.from_user.first_name,
+        "username": message.from_user.username,
+        "full_name": user_input,
+    }
+    save_data(data)
+
+    bot.reply_to(
+        message,
+        f"Rahmat, **{user_input}**!\n\n"
+        "Endi sizga taqdim etilgan **maxsus tokeningizni** kiriting:",
+        parse_mode="Markdown",
+    )
+    return
+
+  # 2-BOSQICH: Tokenni tekshirish
+  if "activated_token" not in user_data:
     tokens = data["tokens"]
 
     if user_input in tokens:
       if not tokens[user_input].get("used", False):
-        # Tokenni faollashtirish
         tokens[user_input]["used"] = True
         tokens[user_input]["used_by"] = message.from_user.id
 
-        data["users"][user_id] = {
-            "first_name": message.from_user.first_name,
-            "username": message.from_user.username,
-            "activated_token": user_input,
-        }
+        data["users"][user_id]["activated_token"] = user_input
         save_data(data)
 
         bot.reply_to(
@@ -153,12 +164,11 @@ def process_message(message):
     else:
       bot.reply_to(
           message,
-          "❌ **Noto'g'ri token kiritildi.**\n"
-          "Iltimos, sizga berilgan to'g'ri tokeningizni kiriting.",
+          "❌ **Noto'g'ri token kiritildi.** Iltimos, to'g'ri token yuboring.",
       )
     return
 
-  # 2. Token faollashtirilgan bo'lsa — Test javoblarini tekshirish
+  # 3-BOSQICH: Test javoblarini hisoblash
   user_answers = parse_user_answers(user_input)
 
   if not user_answers:
@@ -179,22 +189,22 @@ def process_message(message):
     if user_ans == correct_ans.upper():
       correct_count += 1
 
-  # Natijani saqlash
   data["user_submissions"][user_id] = {
+      "full_name": user_data.get("full_name"),
       "score": f"{correct_count}/{total_questions}",
       "answers": user_answers,
   }
   save_data(data)
 
-  # Foydalanuvchiga natijani yuborish
   bot.reply_to(
       message,
-      f"📊 **Sizning natijangiz:** {correct_count} / {total_questions}\n\n"
-      "Javoblaringiz qabul qilindi!",
+      f"📊 **{user_data.get('full_name')}**, sizning natijangiz: **{correct_count} / {total_questions}**\n\n"
+      "Javoblaringiz muvaffaqiyatli qabul qilindi!",
       parse_mode="Markdown",
   )
 
 
 if __name__ == "__main__":
   logging.info("Bot ishga tushdi...")
-bot.infinity_polling(skip_pending=True)
+  bot.infinity_polling(skip_pending=True)
+    
